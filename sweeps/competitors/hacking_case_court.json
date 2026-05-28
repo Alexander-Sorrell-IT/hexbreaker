@@ -1,0 +1,114 @@
+{
+  "root_cause": "Mr. Evil / Greg Schardt operating a wardriving station from a stolen/abandoned Dell Latitude CPi. Q1: Insufficient evidence; Q2: Microsoft Windows XP; Q3: 1092955707; Q4: Central Standard Time; Q5: Greg Schardt; Q6: N-1A9ODN6ZXK4LQ; Q7: N-1A9ODN6ZXK4LQ; Q8: Insufficient evidence; Q9: 5; Q10: Mr. Evil",
+  "confirmed_findings": [
+    "Q1: Insufficient evidence",
+    "Q2: Microsoft Windows XP",
+    "Q3: 1092955707",
+    "Q4: Central Standard Time",
+    "Q5: Greg Schardt",
+    "Q6: N-1A9ODN6ZXK4LQ",
+    "Q7: N-1A9ODN6ZXK4LQ",
+    "Q8: Insufficient evidence",
+    "Q9: 5",
+    "Q10: Mr. Evil",
+    "Q11: Insufficient evidence",
+    "Q12: %REGOWNER%=Greg Schardt",
+    "Q13: Insufficient evidence",
+    "Q14: 192.168.1.111 and 0010a4933e09",
+    "Q15: 0010a4933e09",
+    "Q16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN_1.0, mIRC, Forte Agent",
+    "Q17: whoknowsme@sbcglobal.net",
+    "Q18: news.dallas.sbcglobal.net",
+    "Q19: Outlook Express and mIRC",
+    "Q20: Insufficient evidence",
+    "Q21: Insufficient evidence",
+    "Q22: Insufficient evidence",
+    "Q23: Insufficient evidence",
+    "Q24: Insufficient evidence",
+    "Q25: http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, ftp://4.12.220.254/temp, ftp://4.12.220.254, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/, http://www.microsoft.com/isapi/redir.dll?prd=ie&pver=6&ar=msnhome",
+    "Q26: whoknowsme@sbcglobal.net",
+    "Q27: Insufficient evidence",
+    "Q28: Insufficient evidence",
+    "Q29: Insufficient evidence",
+    "Q30: Insufficient evidence",
+    "Q31: Insufficient evidence"
+  ],
+  "final_narrative": "Per-question summary:\nQ1: Insufficient evidence\nQ2: Microsoft Windows XP\nQ3: 1092955707\nQ4: Central Standard Time\nQ5: Greg Schardt\nQ6: N-1A9ODN6ZXK4LQ\nQ7: N-1A9ODN6ZXK4LQ\nQ8: Insufficient evidence\nQ9: 5\nQ10: Mr. Evil\nQ11: Insufficient evidence\nQ12: %REGOWNER%=Greg Schardt\nQ13: Insufficient evidence\nQ14: 192.168.1.111 and 0010a4933e09\nQ15: 0010a4933e09\nQ16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN_1.0, mIRC, Forte Agent\nQ17: whoknowsme@sbcglobal.net\nQ18: news.dallas.sbcglobal.net\nQ19: Outlook Express and mIRC\nQ20: Insufficient evidence\nQ21: Insufficient evidence\nQ22: Insufficient evidence\nQ23: Insufficient evidence\nQ24: Insufficient evidence\nQ25: http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, ftp://4.12.220.254/temp, ftp://4.12.220.254, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/, http://www.microsoft.com/isapi/redir.dll?prd=ie&pver=6&ar=msnhome\nQ26: whoknowsme@sbcglobal.net\nQ27: Insufficient evidence\nQ28: Insufficient evidence\nQ29: Insufficient evidence\nQ30: Insufficient evidence\nQ31: Insufficient evidence",
+  "hypotheses": [],
+  "findings": [
+    {
+      "question_id": 2,
+      "answer": "Microsoft Windows XP"
+    },
+    {
+      "question_id": 3,
+      "answer": "1092955707"
+    },
+    {
+      "question_id": 4,
+      "answer": "Central Standard Time"
+    },
+    {
+      "question_id": 5,
+      "answer": "Greg Schardt"
+    },
+    {
+      "question_id": 6,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 7,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 9,
+      "answer": "5"
+    },
+    {
+      "question_id": 10,
+      "answer": "Mr. Evil"
+    },
+    {
+      "question_id": 12,
+      "answer": "%REGOWNER%=Greg Schardt"
+    },
+    {
+      "question_id": 14,
+      "answer": "192.168.1.111 and 0010a4933e09"
+    },
+    {
+      "question_id": 15,
+      "answer": "0010a4933e09"
+    },
+    {
+      "question_id": 16,
+      "answer": "Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN_1.0, mIRC, Forte Agent"
+    },
+    {
+      "question_id": 17,
+      "answer": "whoknowsme@sbcglobal.net"
+    },
+    {
+      "question_id": 18,
+      "answer": "news.dallas.sbcglobal.net"
+    },
+    {
+      "question_id": 19,
+      "answer": "Outlook Express and mIRC"
+    },
+    {
+      "question_id": 25,
+      "answer": "http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, ftp://4.12.220.254/temp, ftp://4.12.220.254, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/, http://www.microsoft.com/isapi/redir.dll?prd=ie&pver=6&ar=msnhome"
+    },
+    {
+      "question_id": 26,
+      "answer": "whoknowsme@sbcglobal.net"
+    }
+  ],
+  "total_iterations": 1,
+  "llm_stats": {
+    "total_calls": 1,
+    "mode": "batched_qa"
+  },
+  "audit_log": "n/a — batched Q&A mode does not produce JSONL transcript"
+}
