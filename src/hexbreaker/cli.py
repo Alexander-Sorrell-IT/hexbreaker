@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 import orjson
 
+from .court.hmac_chain import sign_transcript, verify_signature
 from .forge import template_timestomp
 from .forge.case import AnswerKey
 from .runner.court_runner import run_court_on_case
@@ -91,17 +92,50 @@ def leaderboard(seeds: int, agents: str) -> None:
 
 @main.command()
 @click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL).")
-def verify_cmd(transcript_path: str) -> None:
-    """Verify the hash chain on a Court transcript."""
-    ok, reason = verify(transcript_path)
-    if ok:
-        click.echo(f"chain OK: {transcript_path}")
+@click.option("--hmac/--no-hmac", "check_hmac", default=False, help="Also verify the HMAC signature (.sig sidecar). Requires HEXBREAKER_HMAC_PASSWORD.")
+def verify_cmd(transcript_path: str, check_hmac: bool) -> None:
+    """Verify the hash chain (and optionally the HMAC signature) on a Court transcript."""
+    if check_hmac:
+        result = verify_signature(transcript_path)
+        if result.ok:
+            click.echo(f"chain + HMAC OK: {transcript_path}")
+        else:
+            if not result.chain_ok:
+                click.echo(f"chain INVALID: {result.chain_reason}", err=True)
+            if not result.hmac_ok:
+                click.echo(f"HMAC INVALID: {result.reason}", err=True)
+            raise SystemExit(1)
     else:
-        click.echo(f"chain INVALID: {reason}", err=True)
-        raise SystemExit(1)
+        ok, reason = verify(transcript_path)
+        if ok:
+            click.echo(f"chain OK: {transcript_path}  (run with --hmac to also verify signature)")
+        else:
+            click.echo(f"chain INVALID: {reason}", err=True)
+            raise SystemExit(1)
 
 
 main.add_command(verify_cmd, name="verify")
+
+
+@main.command()
+@click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL) to sign.")
+def sign_cmd(transcript_path: str) -> None:
+    """Sign a Court transcript with HMAC-SHA256 (Valhuntir pattern).
+
+    Reads HEXBREAKER_HMAC_PASSWORD from the environment. Writes <transcript>.sig
+    next to the file. The .sig binds the chain head AND record count, so
+    truncation or append is detected even when the post-tamper prefix is
+    independently valid.
+    """
+    sig = sign_transcript(transcript_path)
+    click.echo(f"signed: {transcript_path}")
+    click.echo(f"  algorithm: {sig.algorithm}")
+    click.echo(f"  records:   {sig.record_count}")
+    click.echo(f"  head:      {sig.chain_head}")
+    click.echo(f"  hmac:      {sig.hmac_hex[:16]}...")
+
+
+main.add_command(sign_cmd, name="sign")
 
 
 if __name__ == "__main__":
