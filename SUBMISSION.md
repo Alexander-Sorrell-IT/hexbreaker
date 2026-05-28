@@ -27,7 +27,7 @@ Per the hackathon brief, six equally-weighted criteria with **Autonomous Executi
 | Criterion | Where we show it |
 |---|---|
 | **Innovation** | Generative Forge benchmark (no other entry has one); 5-role MAD with deterministic Python Judge (no other entry has one). |
-| **Technical Quality** | 101 unit tests + 4 live integration tests, all green; 11 commits each with substantive content; clean separation of concerns (transcript / FSM / Judge / Provocateur). |
+| **Technical Quality** | 94 unit tests + 4 live integration tests, all green; 13+ commits each with substantive content; clean separation of concerns (transcript / FSM / Judge / Provocateur). |
 | **Accuracy on Find-Evil cases** | NIST: 95.08% under hackathon constraints (vs dhyabi2's 0% same constraints); Forge: 1.0 normal / 0.5 max-attack with `fp_planted = 0/20`. |
 | **Audit Trail Quality** | Hash-chained JSONL + step_id namespace + cited-hash cross-check + HMAC signing (5 of the 6 safeguards directly underpin this criterion). |
 | **Constraint Implementation** | DeepSeek-only (no Anthropic), no SIFT-only tools required, runs in `python:3.12-slim` Docker (Layer-1 reproducibility); the only entry that runs at all under the LLM constraint AND on a plain Ubuntu host. |
@@ -36,7 +36,7 @@ Per the hackathon brief, six equally-weighted criteria with **Autonomous Executi
 ## Pre-flight checklist (Thu 6/12 evening)
 
 - [ ] `git pull && git status` clean
-- [ ] `pytest` passes 101+ tests
+- [ ] `pytest` passes 94+ tests
 - [ ] `hexbreaker --help` lists 5 subcommands (generate / run / score / verify / sign + leaderboard stub)
 - [ ] `docker build -t hexbreaker -f docker/Dockerfile .` succeeds
 - [ ] Docker smoke: `generate → run → score` works inside the container (one-shot reproducibility for judges)

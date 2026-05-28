@@ -113,7 +113,7 @@ scripts/
 ## Tests
 
 ```bash
-pytest                                  # 101 unit tests, ~3 s
+pytest                                  # 94 unit tests, ~3 s
 HEXBREAKER_RUN_LIVE=1 pytest            # also runs 4 live DeepSeek integration tests
 ```
 

@@ -47,7 +47,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 ## How we built it
 
-10 commits in 2 build days, deliberately staged to keep the safeguard story testable at each step:
+13+ commits in 2 build days, deliberately staged to keep the safeguard story testable at each step:
 
 1. Hash-chained transcript with orchestrator-owned `S-NNN` step_id namespace (Layer 1 + 4)
 2. DeepSeek adapter (httpx + tenacity, 429-aware retry, OpenAI-compatible)
