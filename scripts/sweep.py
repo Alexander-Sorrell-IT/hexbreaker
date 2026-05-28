@@ -20,13 +20,16 @@ from pathlib import Path
 import orjson
 
 from hexbreaker import llm
-from hexbreaker.forge import template_timestomp
+from hexbreaker.forge import template_registry_persistence, template_timestomp
 from hexbreaker.forge.case import load_case
 from hexbreaker.runner.court_runner import run_court_on_case
 from hexbreaker.scorer.exact_match import FindingClass, score
 from hexbreaker.transcript import verify
 
-TEMPLATES = {"timestomp": template_timestomp.generate}
+TEMPLATES = {
+    "timestomp": template_timestomp.generate,
+    "registry_persistence": template_registry_persistence.generate,
+}
 
 
 def run_one(

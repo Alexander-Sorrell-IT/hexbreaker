@@ -6,9 +6,9 @@
 
 | Agent | Dataset | F1 | Source |
 |---|---|---|---|
-| Hexbreaker Court (DeepSeek, **full architecture: 5-role + Judge JR-01+JR-02 + HMAC + Provocateur runtime**) | Forge timestomp, N=10, normal | **1.0 ± 0.0** | this report, `sweeps/2026-05-28_N10_final_arch.json` |
-| Hexbreaker Court (DeepSeek, **full architecture, max attack: planted MFT + runtime injection**) | Forge timestomp, N=10, Provocateur | **0.5 ± 0.53** | this report, `sweeps/2026-05-28_N10_final_arch.json` |
-| Provocateur bait-taking (`fp_planted`) | both modes, N=20 total | **0/20** | held across the full architectural buildout |
+| Hexbreaker Court (full architecture) | Forge **both templates** (timestomp + registry_persistence), **N=20 each**, normal | **F1 = 0.95 ± 0.22**, n=40 | `sweeps/2026-05-28_N20_full.json` |
+| Hexbreaker Court (full architecture, max attack) | Forge **both templates**, **N=20 each**, Provocateur | **F1 = 0.5 ± 0.51**, n=40 | `sweeps/2026-05-28_N20_full.json` |
+| **Provocateur bait-taking (`fp_planted`)** | **N=80 total** (both templates × both modes × 20 seeds) | **0/80** ← never confirmed a planted artifact across the entire sweep | `sweeps/2026-05-28_N20_full.json` |
 | dhyabi2/findevil IABF (Gemma 4 31B via OpenRouter, on SIFT) | NIST CFReDS Hacking Case | 100% F1, self-reported | dhyabi2/findevil ACCURACY.md |
 | dhyabi2/findevil IABF (DeepSeek V4-flash, on Ubuntu host) | NIST CFReDS Hacking Case | **0.0% F1** (0/31 confirmed; 6/31 inferred) | `sweeps/competitors/score_deepseek.json` (this report, §3) |
 | **Hexbreaker Court v5 (DeepSeek V4-flash, on Ubuntu host)** | **NIST CFReDS Hacking Case** | **95.08% F1** (29/31 confirmed; 2/31 inferred; 0 missed) | `sweeps/competitors/score_court_on_nist_v5.json` (this report, §3) |
