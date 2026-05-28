@@ -15,12 +15,31 @@ tools against the case's artifacts/ directory. Same case schema, two backends.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..court.schema import ArtifactKind, VerdictKind
 from ..tools import ToolRunner
+
+
+def _is_safe_relative(p: str) -> bool:
+    """True iff `p` is a relative path with no '..' segments and no absolute prefix.
+
+    Checks against both POSIX and Windows path semantics — a manifest authored
+    on Windows must not be able to inject "C:\\foo" or "..\\..\\etc\\passwd"
+    that a POSIX Path() would treat as relative.
+    """
+    if not p:
+        return False
+    posix = PurePosixPath(p)
+    win = PureWindowsPath(p)
+    if posix.is_absolute() or win.is_absolute():
+        return False
+    if win.drive or win.anchor:
+        return False
+    parts = list(posix.parts) + list(win.parts)
+    return ".." not in parts and not any(part.startswith("/") or part.startswith("\\") for part in parts)
 
 
 class ToolInvocation(BaseModel):
@@ -50,6 +69,30 @@ class CaseManifest(BaseModel):
     defender_steps: list[ToolInvocation] = Field(default_factory=list)
     allowed_tools: list[str] = Field(default_factory=list)
     mock_outputs: dict[str, str] = Field(default_factory=dict)  # key -> relative path
+
+    @field_validator("mock_outputs")
+    @classmethod
+    def _mock_outputs_must_be_relative_and_inside_case_dir(cls, v: dict[str, str]) -> dict[str, str]:
+        """Reject path-traversal payloads in untrusted manifests.
+
+        Without this check, a malicious case directory's manifest can name
+        `../../etc/passwd` as a mock output and the runner will (a) copy the
+        host's /etc/passwd into a sidecar file under the case dir AND (b)
+        inline the first ~3KB of it into the Prosecutor's prompt sent to a
+        third-party LLM API. See `docs/accuracy.md` §5 / sweeps/code-review-...
+        and the security-review markdown for the original finding.
+        """
+        bad: list[str] = []
+        for key, path in v.items():
+            if not _is_safe_relative(path):
+                bad.append(f"{key!r} -> {path!r}")
+        if bad:
+            raise ValueError(
+                "mock_outputs values must be relative paths inside the case "
+                f"directory (no absolute paths, no '..' traversal). Rejected: "
+                + "; ".join(bad)
+            )
+        return v
 
 
 class ExpectedFinding(BaseModel):
@@ -98,14 +141,24 @@ def mock_runner_from_case(case_dir: str | Path, manifest: CaseManifest) -> ToolR
     agent that the tool didn't find what it expected, not a silent zero-byte
     "success" that would look like a clean scan.
     """
-    case_path = Path(case_dir)
+    case_path = Path(case_dir).resolve()
 
     def runner(argv, _cwd, _timeout):
         key = "|".join(argv)
         if key not in manifest.mock_outputs:
             msg = f"hexbreaker stub: no mock_output for {key!r}\n".encode()
             return 1, b"", msg, 0.001
-        stdout_path = case_path / manifest.mock_outputs[key]
-        return 0, stdout_path.read_bytes(), b"", 0.001
+        # Defense in depth: schema validator already rejected absolute/traversal
+        # paths, but verify containment at runtime too. A manifest could have
+        # been constructed in code (bypassing model_validate) or someone may
+        # have widened the validator in the future.
+        candidate = (case_path / manifest.mock_outputs[key]).resolve()
+        if not candidate.is_relative_to(case_path):
+            msg = (
+                f"hexbreaker stub: mock_output {key!r} resolves outside case dir "
+                f"({candidate} not under {case_path})\n"
+            ).encode()
+            return 1, b"", msg, 0.001
+        return 0, candidate.read_bytes(), b"", 0.001
 
     return runner

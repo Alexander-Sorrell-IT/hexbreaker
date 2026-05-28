@@ -133,19 +133,33 @@ def _render_transcript(path: Path) -> str:
     For TOOL_CALL records, inline the stdout sidecar (capped) — the agent has
     to reason about tool *content*, not just metadata. Without this, the
     Prosecutor sees only argv/hash/bytes and can't identify what's in the file.
+
+    Security: every sidecar path is validated against the transcript directory
+    before reading. A poisoned transcript record with `stdout_path` set to
+    `../../etc/passwd` (shipped inside a malicious case directory) would
+    otherwise give an attacker arbitrary file read followed by exfiltration
+    via the next LLM prompt. See sweeps/code-review-2026-05-27.json and the
+    security review's Vuln 2.
     """
-    transcript_dir = Path(path).parent
+    transcript_dir = Path(path).parent.resolve()
     lines: list[str] = []
     for r in read(path):
         header = f"{r.step_id} | {r.actor.value} | {r.kind.value}"
         if r.kind.value == "tool_call" and "stdout_path" in r.content:
-            sidecar = transcript_dir / r.content["stdout_path"]
-            try:
-                stdout = sidecar.read_text(errors="replace")
-            except OSError:
-                stdout = "<unreadable sidecar>"
-            if len(stdout) > _STDOUT_INLINE_CAP:
-                stdout = stdout[:_STDOUT_INLINE_CAP] + "\n...<truncated>"
+            raw_sidecar = r.content["stdout_path"]
+            candidate = (transcript_dir / raw_sidecar).resolve()
+            if not candidate.is_relative_to(transcript_dir):
+                # Hostile / poisoned sidecar path. Refuse to read and mark
+                # the rendering so the LLM has no chance to attribute meaning
+                # to whatever the attacker stuffed in this slot.
+                stdout = f"<sidecar refused: {raw_sidecar!r} escapes transcript dir>"
+            else:
+                try:
+                    stdout = candidate.read_text(errors="replace")
+                except OSError:
+                    stdout = "<unreadable sidecar>"
+                if len(stdout) > _STDOUT_INLINE_CAP:
+                    stdout = stdout[:_STDOUT_INLINE_CAP] + "\n...<truncated>"
             meta = {k: r.content[k] for k in ("tool", "argv", "returncode", "stdout_hash")}
             lines.append(
                 f"{header} | meta={orjson.dumps(meta).decode()}\n"
@@ -221,6 +235,20 @@ def run_court_on_case(
 
     transcript_path = Path(transcript_path) if transcript_path else case_path / "transcript.jsonl"
     findings_path = Path(out_findings_path) if out_findings_path else case_path / "findings.json"
+
+    # Security: refuse to resume a pre-existing transcript inside an externally
+    # provided case directory. The attack: a malicious case dir ships a poisoned
+    # transcript.jsonl whose records reference `stdout_path: "../../etc/passwd"`,
+    # which would then be inlined into the first Prosecutor prompt and exfilled
+    # to the LLM API. _render_transcript also defends against this at the
+    # sidecar-resolution layer; this is the second line of defense.
+    if transcript_path.exists() and transcript_path.stat().st_size > 0:
+        raise RuntimeError(
+            f"refusing to resume pre-existing transcript {transcript_path} — "
+            f"a poisoned transcript shipped inside a case directory is a "
+            f"path-traversal exfiltration vector. Delete it or pass an explicit "
+            f"--transcript path outside the case dir if you really mean to resume."
+        )
 
     t = Transcript.open(transcript_path)
     session = CourtSession(t)

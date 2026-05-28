@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import orjson
+import pytest
 
 from hexbreaker.forge.case import (
     AnswerKey,
@@ -71,3 +72,77 @@ def test_mock_runner_returns_error_for_unknown_invocation(tmp_path: Path) -> Non
     assert rc == 1
     assert stdout == b""
     assert b"no mock_output" in stderr
+
+
+# === Security: path-traversal in mock_outputs ===
+# These regression tests cover the HIGH-severity finding from the
+# 2026-05-27 security review (sweeps/code-review-2026-05-27.json /
+# /tmp/.../task.output for security-review). Without the field_validator on
+# CaseManifest.mock_outputs + the is_relative_to runtime check, a malicious
+# case manifest gives an attacker arbitrary file read + LLM-channel exfil.
+
+
+def test_mock_outputs_rejects_absolute_path(tmp_path: Path) -> None:
+    """A manifest naming an absolute path as a mock output must fail validation."""
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="mock_outputs"):
+        CaseManifest(
+            case_id="c", seed=1, template="t", description="d",
+            mock_outputs={"MFTECmd|-f|/case/MFT": "/etc/passwd"},
+        )
+
+
+def test_mock_outputs_rejects_dot_dot_traversal(tmp_path: Path) -> None:
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="mock_outputs"):
+        CaseManifest(
+            case_id="c", seed=1, template="t", description="d",
+            mock_outputs={"MFTECmd|-f|/case/MFT": "../../../etc/passwd"},
+        )
+
+
+def test_mock_outputs_rejects_windows_drive_path(tmp_path: Path) -> None:
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="mock_outputs"):
+        CaseManifest(
+            case_id="c", seed=1, template="t", description="d",
+            mock_outputs={"MFTECmd|-f|/case/MFT": "C:\\Windows\\System32\\config\\SAM"},
+        )
+
+
+def test_mock_outputs_rejects_windows_backslash_traversal(tmp_path: Path) -> None:
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="mock_outputs"):
+        CaseManifest(
+            case_id="c", seed=1, template="t", description="d",
+            mock_outputs={"MFTECmd|-f|/case/MFT": "..\\..\\Windows\\System32\\config\\SAM"},
+        )
+
+
+def test_mock_outputs_accepts_safe_relative_subpath() -> None:
+    """Sanity: a normal relative path (the actual use case) still validates."""
+    m = CaseManifest(
+        case_id="c", seed=1, template="t", description="d",
+        mock_outputs={"MFTECmd|-f|/case/MFT": "mock_outputs/mft.csv"},
+    )
+    assert m.mock_outputs["MFTECmd|-f|/case/MFT"] == "mock_outputs/mft.csv"
+
+
+def test_mock_runner_defense_in_depth_against_runtime_traversal(tmp_path: Path) -> None:
+    """If a manifest is constructed in code (bypassing validation) with a
+    traversal, the runtime is_relative_to check must still refuse to read."""
+    case_dir = tmp_path / "case"
+    (case_dir / "mock_outputs").mkdir(parents=True)
+    (case_dir / "mock_outputs" / "real.csv").write_bytes(b"legit")
+    # model_construct bypasses validators — simulates someone widening the
+    # validator or building the manifest directly without round-tripping JSON.
+    manifest = CaseManifest.model_construct(
+        case_id="c", seed=1, template="t", description="d",
+        pre_pass_steps=[], defender_steps=[], allowed_tools=[],
+        mock_outputs={"MFTECmd|-f|/case/MFT": "../../../../etc/passwd"},
+    )
+    runner = mock_runner_from_case(case_dir, manifest)
+    rc, stdout, stderr, _ = runner(["MFTECmd", "-f", "/case/MFT"], None, None)
+    assert rc == 1
+    assert stdout == b""
+    assert b"resolves outside case dir" in stderr

@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from ..tools import ToolResult, ToolRunner, run_tool, subprocess_runner
 from ..transcript import Actor, Kind, StepRecord, Transcript
 from .schema import Claim, Verdict
+from .judge import RulingKind, judge
 from .validator import (
     ValidationIssue,
     ValidationResult,
@@ -151,9 +152,8 @@ class CourtSession:
             )
             return VerdictOutcome(result=result, verdict=None, record=rec, accepted=False)
 
-        result, verdict = validate_verdict_json(
-            raw_json, list(_read_records(self.transcript))
-        )
+        records = list(_read_records(self.transcript))
+        result, verdict = validate_verdict_json(raw_json, records)
         if not result.ok or verdict is None:
             rec = self.transcript.append(
                 actor=Actor.ORCHESTRATOR,
@@ -165,6 +165,29 @@ class CourtSession:
                 },
             )
             return VerdictOutcome(result=result, verdict=None, record=rec, accepted=False)
+
+        # Schema + citation integrity passed. Run the deterministic Judge to
+        # apply rules that the Defender's prompt was previously the only
+        # enforcer for (corroboration etc.). A downgrade is recorded as a
+        # JUDGE event and the stored Verdict is the post-Judge one.
+        assert self.claim is not None  # claim accepted before any verdict
+        ruling = judge(verdict, self.claim, records)
+        if ruling.kind == RulingKind.DOWNGRADED:
+            self.transcript.append(
+                actor=Actor.JUDGE,
+                kind=Kind.SYSTEM_EVENT,
+                content={
+                    "event": "judge_downgrade",
+                    "rule_id": ruling.rule_id,
+                    "reason": ruling.reason,
+                    "original_verdict": verdict.verdict,
+                    "final_verdict": ruling.verdict_kind,
+                    "distinct_tools_cited": ruling.distinct_tools_cited,
+                },
+            )
+            verdict_dict = verdict.model_dump()
+            verdict_dict["verdict"] = ruling.verdict_kind
+            verdict = type(verdict).model_validate(verdict_dict)
 
         rec = self.transcript.append(
             actor=Actor.DEFENDER,
