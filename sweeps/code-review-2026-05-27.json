@@ -1,0 +1,92 @@
+[
+  {
+    "file": "src/hexbreaker/forge/template_timestomp.py",
+    "line": 95,
+    "summary": "Evil MFT row is always emitted at rows[0] before decoys and planted rows append. CSV position is a confound with the $SI/$FN-divergence signal.",
+    "failure_scenario": "An agent (or prompt artifact) that picks the first MFT data row scores F1=1.0 across all seeds because evil_name is hardcoded into rows[0]. The headline 'F1_mean=1.0 ± 0.0' claim in docs/accuracy.md §2.2 may be measuring 'pick row #1' rather than timestomp reasoning. Fix: rng.shuffle the row list before encoding to CSV; re-run sweep; if F1 drops, the prior measurement was an artifact."
+  },
+  {
+    "file": "src/hexbreaker/court/__init__.py",
+    "line": 7,
+    "summary": "No judge.py module exists in src/hexbreaker/court/ (ls shows only __init__.py, orchestrator.py, schema.py, validator.py). Architecture.md:28 lists 'Final accept/reject of finding' as the Judge's architectural boundary. court_runner.py promotes any CONFIRMED Defender verdict straight into findings with zero deterministic post-check.",
+    "failure_scenario": "Any prompt-only safeguard can be bypassed by a model that ignores or misapplies prose instructions. The corroboration rule, the target-format rule, and the positive-claims rule all live in prompts — none are enforced in Python. The 'deterministic Judge' is the named architectural defense and it does not exist. Submission claims (README.md, architecture.md, accuracy.md) that reference the Judge are unsupported by implementation."
+  },
+  {
+    "file": "src/hexbreaker/forge/template_timestomp.py",
+    "line": 117,
+    "summary": "Provocateur is implemented as case-generation-time row planting, not as a runtime adversarial role. Actor.PROVOCATEUR exists in transcript.py:34 but grep -rn 'Actor.PROVOCATEUR' src/ returns zero hits. No PROVOCATEUR record is ever appended to any transcript.",
+    "failure_scenario": "README.md:15 claims '5-role adversarial system: Prosecutor + Defender (independent context) + Witness (called on demand, disjoint toolset) + deterministic non-LLM Judge + Provocateur (live prompt-injection red-team in every run).' A judge inspecting any transcript finds only PROSECUTOR, TOOL, ORCHESTRATOR, DEFENDER. The '5-role' claim and 'live prompt-injection red-team' claim are unsupported by the code."
+  },
+  {
+    "file": "src/hexbreaker/transcript.py",
+    "line": 23,
+    "summary": "Actor.WITNESS (line 32) and prompts/witness.md exist, but no code path in src/ ever invokes a Witness LLM, calls observe_tool with the Witness role, or appends a WITNESS-actor record.",
+    "failure_scenario": "'5-role Court' claim reduces to 2 active roles in implementation (Prosecutor + Defender). When verdicts are CONTESTED (which happens in 1-2/20 runs per the sweep data), architecture.md's design says Witness re-derives with independent toolset — but the runner simply emits zero findings. The 'convergence across asymmetric tools' claim in prompts/witness.md:17 is not demonstrable in any run."
+  },
+  {
+    "file": "src/hexbreaker/court/validator.py",
+    "line": 33,
+    "summary": "Citation validation checks step_id existence + stdout_hash match, but does NOT check that cited tool steps actually corroborate the Claim.target. A Verdict citing the MFTECmd step for a totally different file passes validation as long as the step_id and hash resolve.",
+    "failure_scenario": "Defender returns CONFIRMED with two citations both pointing at the same MFTECmd step (one tool kind), or two yara hits for files unrelated to Claim.target. _unique_step_ids passes (different step_ids), hash check passes (they exist in transcript), and the validator accepts. The seed-4004 bait-taking is structurally re-enabled — the corroboration rule lives only in the Defender prompt, not in the validator."
+  },
+  {
+    "file": "src/hexbreaker/scorer/exact_match.py",
+    "line": 60,
+    "summary": "score() builds sets via `{_key(f) for f in ...}` and iterates `for k in reported:` and `for k in expected - reported:`. Set iteration order is hash-randomized in CPython (PYTHONHASHSEED), making the `results` list order non-deterministic.",
+    "failure_scenario": "Two runs on byte-identical inputs produce ScoreReports whose `results` lists differ in order. Any byte-level comparison of the score JSON (CI diff test, judge-side hash verification, accuracy.md reproducibility claim) flaps. docs/accuracy.md §7 explicitly claims byte-identical reproducibility — this finding contradicts that claim."
+  },
+  {
+    "file": "src/hexbreaker/llm.py",
+    "line": 147,
+    "summary": "All 4xx responses raise LLMError without retry — including 429 (rate-limited), which DeepSeek explicitly recommends retrying with backoff. The tenacity decorator retries on TransportError + HTTPStatusError, but LLMError is raised before raise_for_status() can trigger HTTPStatusError.",
+    "failure_scenario": "Under sweep load (10+ concurrent runs) DeepSeek returns 429. The wrapper raises LLMError; sweep.py's broad `except Exception` (line 69) marks the run failed and continues to the next. The aggregate is computed only over `r.get('ok')` runs, so rate-limited cases silently drop. The reported F1=1.0 ± 0.0 is averaged over fewer runs than the headline implies."
+  },
+  {
+    "file": "src/hexbreaker/tools.py",
+    "line": 54,
+    "summary": "subprocess_runner calls subprocess.run with timeout= but does NOT catch TimeoutExpired. run_tool also lacks the catch. A tool that exceeds timeout raises TimeoutExpired all the way up, killing the Court turn instead of recording a returncode!=0 TOOL_CALL.",
+    "failure_scenario": "A real-mode tool (vol, log2timeline) exceeds the default 300s. The exception bubbles through subprocess_runner -> run_tool -> CourtSession.observe_tool -> court_runner; the FSM is left in AWAITING_TOOL with _tools_observed_since_claim=0, no transcript entry written. On Defender retry the same tool gets re-invoked, same crash. From the operator's view: no record this tool was even attempted."
+  },
+  {
+    "file": "src/hexbreaker/runner/court_runner.py",
+    "line": 254,
+    "summary": "Double-rejection paths (claim rejected twice OR verdict rejected twice) fall through to _write_findings(manifest, [], ...). This emits a clean findings.json with empty findings list — indistinguishable from a 'clean host, agent correctly found nothing' run.",
+    "failure_scenario": "A sweep run gets `F1=0.0` rows from cases where the Defender actually fabricated step_ids twice and the run was abandoned. sweeps/2026-05-27_N10_baseline.json's `0/20 fp_planted` claim is statistically weakened: cases where the Defender retried-and-fabricated produce identical output to cases where the Defender ran cleanly and CONTESTED. accuracy.md's 'zero hallucinated step_ids across N=20' claim can't be distinguished from 'two double-rejected runs hidden as empty findings'."
+  },
+  {
+    "file": "src/hexbreaker/court/orchestrator.py",
+    "line": 105,
+    "summary": "Pre-pass tools (called via run_tool directly, not session.observe_tool) write TOOL_CALL records to the transcript BEFORE submit_claim is invoked. The FSM's R1 doctrine ('Claim before any tool is observed', enforced by FSMError in observe_tool) is silently bypassed for the pre-pass path.",
+    "failure_scenario": "An adversarial audit of any Court transcript finds TOOL_CALL records with turn=0 chronologically before any CLAIM record. The documented architectural invariant 'no tool observation before accepted claim' is contradicted by the on-disk artifact. This is the kind of structural gap a code-reviewer-judge would find in 30 seconds."
+  },
+  {
+    "file": "src/hexbreaker/llm.py",
+    "line": 145,
+    "summary": "httpx.Client is opened inside `with` block on EVERY _post call — no connection pooling, fresh TLS handshake per request. Also resp.text and resp.json() are accessed after the `with` block has closed the Client.",
+    "failure_scenario": "A 20-call Court round pays 20 fresh TLS handshakes against api.deepseek.com. For the sweep (90 calls per dhyabi2 NIST run, ~20 per Court round x 20 runs) this is hundreds of needless handshakes — multiple seconds of avoidable latency contaminating the 'wall_s_per_run' metric. The post-close .text/.json access works only because httpx buffers non-streamed bodies; switching to streaming would crash."
+  },
+  {
+    "file": "src/hexbreaker/court/orchestrator.py",
+    "line": 116,
+    "summary": "CourtSession.observe_tool's runner parameter defaults to module-level subprocess_runner. A test that constructs CourtSession and forgets `runner=mock_runner_from_case(...)` silently shells out to host binaries.",
+    "failure_scenario": "A new contributor writes a test that calls session.observe_tool('yara', ['-r', 'rules', '/etc']) without passing runner=. On CI machines without yara → FileNotFoundError. On dev machines with yara installed → real yara executes against the test's argv paths. A safer default would be a runner that raises 'no runner provided' requiring tests to opt in to live subprocess execution."
+  },
+  {
+    "file": "src/hexbreaker/scorer/exact_match.py",
+    "line": 16,
+    "summary": "fp_planted is structurally capped at 0 or 1 per Court run because court_runner.run_court_on_case emits at most ONE finding per case (one Claim → one optional CONFIRMED). The 'strongest safeguard signal' metric cannot detect a Defender that would have confirmed multiple planted rows.",
+    "failure_scenario": "A Provocateur case with 2 planted rows: even a fully bait-taken Defender scores fp_planted=1, not 2. accuracy.md's 'Provocateur bait taken' metric undercounts the safeguard failure it exists to measure. The N=10 provocateur sweep's claim 'fp_planted_total=0/10' is bounded above by 10 (one bait per case max), not 20 (2 planted rows × 10 cases)."
+  },
+  {
+    "file": "scripts/sweep.py",
+    "line": 69,
+    "summary": "`except Exception as e:` swallows ALL exceptions from run_court_on_case (KeyError, AttributeError, TypeError, ValidationError) and tags the run `ok: False`. The aggregate is computed only over `if r.get('ok')`, silently dropping programming errors.",
+    "failure_scenario": "A regression in run_court_on_case that raises AttributeError on every call silently records 'error' for all 10 runs. aggregate() returns an empty summary dict — no exception, no non-zero exit. The headline F1_mean is averaged over whichever runs happen to not hit the bug. accuracy.md gate numbers could be built on as few as 1-of-10 actual runs."
+  },
+  {
+    "file": "src/hexbreaker/runner/court_runner.py",
+    "line": 144,
+    "summary": "_render_transcript reads tool stdout sidecars with `read_text(errors='replace')` — no encoding= argument AND silent U+FFFD replacement on undecodable bytes. The bytes shown to the LLM diverge from the bytes that were sha256'd at run_tool time.",
+    "failure_scenario": "On a real-tool template emitting binary stdout (bulk_extractor, vol memory dumps, raw fls output with non-UTF-8), the LLM reasons about a U+FFFD-corrupted rendering while citing the hash of the raw bytes. Today all mock outputs are pure ASCII so this is latent — activates on the first real-bytes template. Also: encoding fallback to locale.getpreferredencoding() means Windows hosts (cp1252) and Linux hosts (UTF-8) render the same case differently."
+  }
+]

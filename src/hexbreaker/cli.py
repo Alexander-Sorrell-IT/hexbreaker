@@ -1,6 +1,19 @@
 """Hexbreaker CLI entry point. Subcommands wired in as each subsystem lands."""
 
+from __future__ import annotations
+
+from pathlib import Path
+
 import click
+import orjson
+
+from .forge import template_timestomp
+from .forge.case import AnswerKey
+from .runner.court_runner import run_court_on_case
+from .scorer.exact_match import score
+from .transcript import verify
+
+TEMPLATES = {"timestomp": template_timestomp.generate}
 
 
 @click.group()
@@ -11,13 +24,27 @@ def main() -> None:
 
 @main.command()
 @click.option("--seed", type=int, required=True, help="Case generation seed.")
-@click.option("--template", default="all", help="Case template id or 'all'.")
+@click.option(
+    "--template",
+    default="timestomp",
+    type=click.Choice(sorted(TEMPLATES.keys())),
+    help="Case template id.",
+)
 @click.option("--out", type=click.Path(), required=True, help="Output case directory.")
-def generate(seed: int, template: str, out: str) -> None:
+@click.option(
+    "--provocateur/--no-provocateur",
+    default=False,
+    help="Inject planted-evidence payloads. Robust agents must NOT confirm them.",
+)
+def generate(seed: int, template: str, out: str, provocateur: bool) -> None:
     """Generate a synthetic DFIR case from a seed."""
-    raise NotImplementedError(
-        f"forge.generate(seed={seed}, template={template!r}, out={out!r}) — landing Tuesday 5/27"
-    )
+    manifest = TEMPLATES[template](seed, out, provocateur=provocateur)
+    click.echo(f"generated case {manifest.case_id} at {out}")
+    click.echo(f"  template: {manifest.template}")
+    click.echo(f"  provocateur: {provocateur}")
+    click.echo(f"  pre_pass_steps: {len(manifest.pre_pass_steps)}")
+    click.echo(f"  defender_steps: {len(manifest.defender_steps)}")
+    click.echo(f"  mock_outputs: {len(manifest.mock_outputs)}")
 
 
 @main.command()
@@ -26,19 +53,30 @@ def generate(seed: int, template: str, out: str) -> None:
 @click.option("--out", type=click.Path(), required=True, help="Findings output path.")
 def run(agent: str, case: str, out: str) -> None:
     """Run an agent on a case and capture findings."""
-    raise NotImplementedError(
-        f"runner.run(agent={agent!r}, case={case!r}, out={out!r}) — landing Wednesday 5/28"
-    )
+    if agent != "court":
+        raise click.UsageError(f"agent {agent!r} not implemented yet — only 'court' lands on 5/29")
+    result = run_court_on_case(case, out)
+    click.echo(f"court run finished: {result.case_id}")
+    click.echo(f"  transcript: {result.transcript_path}")
+    click.echo(f"  findings: {len(result.findings)} → {result.findings_path}")
+    for f in result.findings:
+        click.echo(f"    - {f['artifact_kind']} target={f['target']!r} verdict={f['verdict']}")
 
 
 @main.command()
-@click.option("--findings", type=click.Path(exists=True), required=True, help="Agent findings JSON.")
-@click.option("--answer-key", type=click.Path(exists=True), required=True, help="Ground truth JSON.")
-def score(findings: str, answer_key: str) -> None:
+@click.option("--findings", "findings_path", type=click.Path(exists=True), required=True, help="Agent findings JSON.")
+@click.option("--answer-key", "answer_key_path", type=click.Path(exists=True), required=True, help="Ground truth JSON.")
+def score_cmd(findings_path: str, answer_key_path: str) -> None:
     """Score agent findings against the case answer key."""
-    raise NotImplementedError(
-        f"scorer.score(findings={findings!r}, answer_key={answer_key!r}) — landing Wednesday 5/28"
-    )
+    payload = orjson.loads(Path(findings_path).read_bytes())
+    raw_findings = payload.get("findings", []) if isinstance(payload, dict) else payload
+    answer = AnswerKey.model_validate_json(Path(answer_key_path).read_bytes())
+    report = score(raw_findings, answer)
+    click.echo(orjson.dumps(report.model_dump(), option=orjson.OPT_INDENT_2).decode())
+
+
+# Click's command attribute is `score_cmd` to avoid shadowing the imported score().
+main.add_command(score_cmd, name="score")
 
 
 @main.command()
@@ -52,12 +90,18 @@ def leaderboard(seeds: int, agents: str) -> None:
 
 
 @main.command()
-@click.option("--run-id", required=True, help="Run identifier to verify.")
-def verify(run_id: str) -> None:
-    """Verify hash chain + HMAC signatures on a Court run transcript."""
-    raise NotImplementedError(
-        f"transcript verification for run_id={run_id!r} — landing Tuesday 6/3"
-    )
+@click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL).")
+def verify_cmd(transcript_path: str) -> None:
+    """Verify the hash chain on a Court transcript."""
+    ok, reason = verify(transcript_path)
+    if ok:
+        click.echo(f"chain OK: {transcript_path}")
+    else:
+        click.echo(f"chain INVALID: {reason}", err=True)
+        raise SystemExit(1)
+
+
+main.add_command(verify_cmd, name="verify")
 
 
 if __name__ == "__main__":
