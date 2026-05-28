@@ -49,15 +49,25 @@ def subprocess_runner(
     cwd: Path | None,
     timeout: float | None,
 ) -> tuple[int, bytes, bytes, float]:
-    """Default runner — execute argv locally and capture output."""
+    """Default runner — execute argv locally and capture output.
+
+    Catches TimeoutExpired so a long-running tool produces a clean failed
+    TOOL_CALL record (rc=124, stderr explaining the timeout) rather than
+    crashing the Court turn — code-review Tier B finding (wrapper/proxy E5).
+    """
     t0 = time.monotonic()
-    completed = subprocess.run(
-        argv,
-        capture_output=True,
-        cwd=cwd,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            argv,
+            capture_output=True,
+            cwd=cwd,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as te:
+        stdout = te.stdout or b""
+        stderr = (te.stderr or b"") + f"\n[hexbreaker] timeout after {timeout}s: {' '.join(argv)}\n".encode()
+        return 124, stdout, stderr, time.monotonic() - t0
     return completed.returncode, completed.stdout, completed.stderr, time.monotonic() - t0
 
 

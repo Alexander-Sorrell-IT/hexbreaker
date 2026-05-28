@@ -60,6 +60,12 @@ class LLMError(RuntimeError):
     """Raised when the provider returns a non-retryable error."""
 
 
+class _RateLimitRetry(Exception):
+    """Internal marker so tenacity retries 429 responses (which DeepSeek
+    explicitly asks clients to retry with backoff) without confusing them
+    with auth/quota errors that should fail fast."""
+
+
 def load_env(path: str | Path = ".env") -> None:
     """Minimal .env loader — only sets keys that aren't already in os.environ."""
     p = Path(path)
@@ -131,7 +137,7 @@ class DeepSeekClient:
         )
 
     @retry(
-        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError, _RateLimitRetry)),
         wait=wait_exponential(multiplier=1, min=1, max=20),
         stop=stop_after_attempt(4),
         reraise=True,
@@ -144,8 +150,13 @@ class DeepSeekClient:
         }
         with httpx.Client(timeout=self._timeout) as client:
             resp = client.post(url, headers=headers, content=orjson.dumps(payload))
+        # 429 is the canonical retry-with-backoff case — DeepSeek explicitly
+        # asks clients to retry. Other 4xx (auth, quota, bad request) are NOT
+        # retryable and surface immediately as LLMError so the sweep records
+        # a real failure instead of burning retry budget on a 401.
+        if resp.status_code == 429:
+            raise _RateLimitRetry(f"DeepSeek 429: {resp.text[:200]}")
         if 400 <= resp.status_code < 500:
-            # Auth/quota/bad-request — not retryable. Surface as LLMError directly.
             raise LLMError(f"DeepSeek {resp.status_code}: {resp.text[:500]}")
         resp.raise_for_status()
         return resp.json()

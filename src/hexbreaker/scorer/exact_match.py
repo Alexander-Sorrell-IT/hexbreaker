@@ -63,7 +63,10 @@ def score(findings: list[dict[str, Any]], answer_key: AnswerKey) -> ScoreReport:
 
     results: list[FindingResult] = []
 
-    for k in reported:
+    # Sort the set iterations so the ScoreReport.results list is byte-stable
+    # across runs (Python sets are hash-randomized per PYTHONHASHSEED).
+    # This is what backs the "reproducible" claim in docs/accuracy.md §7.
+    for k in sorted(reported):
         kind, target = k
         if k in expected:
             cls = FindingClass.TP
@@ -75,7 +78,7 @@ def score(findings: list[dict[str, Any]], answer_key: AnswerKey) -> ScoreReport:
             cls = FindingClass.FP_EXTRANEOUS
         results.append(FindingResult(artifact_kind=kind, target=target, classification=cls))  # type: ignore[arg-type]
 
-    for k in expected - reported:
+    for k in sorted(expected - reported):
         kind, target = k
         results.append(FindingResult(artifact_kind=kind, target=target, classification=FindingClass.FN))  # type: ignore[arg-type]
 

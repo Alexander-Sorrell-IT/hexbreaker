@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from ..tools import ToolResult, ToolRunner, run_tool, subprocess_runner
+from ..tools import ToolResult, ToolRunner, run_tool
 from ..transcript import Actor, Kind, StepRecord, Transcript
 from .schema import Claim, Verdict
 from .judge import RulingKind, judge
@@ -111,12 +111,29 @@ class CourtSession:
         *,
         cwd: Path | None = None,
         timeout: float | None = 300.0,
-        runner: ToolRunner = subprocess_runner,
+        runner: ToolRunner | None = None,
     ) -> ToolResult:
+        """Run a tool through the FSM. `runner` defaults to a SAFE no-op that
+        refuses to execute — callers must opt in to live subprocess via
+        `runner=subprocess_runner` or pass a mock runner from the Forge case.
+
+        Without this default, test code that forgets to pass `runner=` would
+        silently shell out to host binaries (yara, fls, vol) with whatever
+        argv the test happens to pass — caught by the code review's wrapper-E
+        angle.
+        """
         if self.state == State.AWAITING_CLAIM:
             raise FSMError("observe_tool requires an accepted claim first")
         if self.state == State.VERDICT_ACCEPTED:
             raise FSMError("session is closed (verdict accepted)")
+        if runner is None:
+            raise FSMError(
+                "observe_tool requires an explicit `runner=` argument. "
+                "Pass `runner=subprocess_runner` for live execution or "
+                "`runner=mock_runner_from_case(case_dir, manifest)` for stub mode. "
+                "The previous default (subprocess_runner) silently shelled out "
+                "to host binaries from test code — code review wrapper-E finding."
+            )
 
         result = run_tool(
             self.transcript, tool, args, cwd=cwd, timeout=timeout, runner=runner
