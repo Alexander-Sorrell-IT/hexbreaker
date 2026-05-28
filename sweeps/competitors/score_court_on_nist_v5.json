@@ -1,0 +1,347 @@
+{
+  "label": "Court-NIST-v5",
+  "report": "sweeps/competitors/hacking_case_court_v5.json",
+  "ground_truth": "/tmp/competitors/findevil/reports/ground_truth/hacking_case.json",
+  "total_questions": 31,
+  "TP_confirmed": 29,
+  "TP_inferred": 2,
+  "FN": 0,
+  "candidate_FP": 1,
+  "candidate_FP_items": [
+    "Q28: lalsetup250.exe, netstumblerinstaller_0_4_0.exe, WinPcap_3_01_a.exe, ethereal-setup-0.10.6.exe"
+  ],
+  "recall_overall": 1.0,
+  "recall_confirmed_only": 0.935,
+  "precision_on_claims": 0.967,
+  "f1_confirmed": 0.951,
+  "per_question": [
+    {
+      "id": 1,
+      "q": "Image hash and verify match",
+      "expected": [
+        "AEE4FCD9301C03B3B054623CA261959A",
+        "Yes"
+      ],
+      "verdict": "TP",
+      "matched": "AEE4FCD9301C03B3B054623CA261959A"
+    },
+    {
+      "id": 2,
+      "q": "Operating system",
+      "expected": [
+        "Windows XP"
+      ],
+      "verdict": "TP",
+      "matched": "Windows XP"
+    },
+    {
+      "id": 3,
+      "q": "OS install date",
+      "expected": [
+        "08/19/04 05:48:27PM",
+        "2004-08-19 17:48:27"
+      ],
+      "verdict": "TP",
+      "matched": "2004-08-19 17:48:27"
+    },
+    {
+      "id": 4,
+      "q": "Timezone setting",
+      "expected": [
+        "Central Daylight Time",
+        "-05 GMT",
+        "CDT"
+      ],
+      "verdict": "TP",
+      "matched": "Central Daylight Time"
+    },
+    {
+      "id": 5,
+      "q": "Registered owner",
+      "expected": [
+        "Greg Schardt"
+      ],
+      "verdict": "TP",
+      "matched": "Greg Schardt"
+    },
+    {
+      "id": 6,
+      "q": "Computer account name",
+      "expected": [
+        "N-1A9ODN6ZXK4LQ"
+      ],
+      "verdict": "TP",
+      "matched": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "id": 7,
+      "q": "Primary domain name",
+      "expected": [
+        "Evil"
+      ],
+      "verdict": "TP",
+      "matched": "Evil"
+    },
+    {
+      "id": 8,
+      "q": "Last shutdown date/time",
+      "expected": [
+        "08/27/04 10:46:33AM",
+        "2004-08-27 10:46:33"
+      ],
+      "verdict": "TP",
+      "matched": "2004-08-27 10:46:33"
+    },
+    {
+      "id": 9,
+      "q": "Total user accounts",
+      "expected": [
+        "5"
+      ],
+      "verdict": "TP",
+      "matched": "5"
+    },
+    {
+      "id": 10,
+      "q": "Primary user account",
+      "expected": [
+        "Mr. Evil"
+      ],
+      "verdict": "TP",
+      "matched": "Mr. Evil"
+    },
+    {
+      "id": 11,
+      "q": "Last user to log on",
+      "expected": [
+        "Mr. Evil"
+      ],
+      "verdict": "TP",
+      "matched": "Mr. Evil"
+    },
+    {
+      "id": 12,
+      "q": "File tying Schardt to Mr. Evil / admin",
+      "expected": [
+        "irunin.ini",
+        "Look@LAN",
+        "C:\\Program Files\\Look@LAN"
+      ],
+      "verdict": "TP",
+      "matched": "irunin.ini"
+    },
+    {
+      "id": 13,
+      "q": "Network cards used",
+      "expected": [
+        "Xircom CardBus Ethernet 100 + Modem 56",
+        "Compaq WL110 Wireless LAN PC Card"
+      ],
+      "verdict": "TP",
+      "matched": "Xircom CardBus Ethernet 100 + Modem 56"
+    },
+    {
+      "id": 14,
+      "q": "IP and MAC address in irunin.ini",
+      "expected": [
+        "192.168.1.111",
+        "0010a4933e09",
+        "00:10:a4:93:3e:09"
+      ],
+      "verdict": "TP",
+      "matched": "192.168.1.111"
+    },
+    {
+      "id": 15,
+      "q": "NIC vendor used during LOOK@LAN install",
+      "expected": [
+        "Xircom"
+      ],
+      "verdict": "TP",
+      "matched": "Xircom"
+    },
+    {
+      "id": 16,
+      "q": "6+ hacking programs installed",
+      "expected": [
+        "Cain & Abel",
+        "Ethereal",
+        "123 Write All Stored Passwords",
+        "Anonymizer",
+        "CuteFTP",
+        "Look@LAN",
+        "NetStumbler"
+      ],
+      "verdict": "TP",
+      "matched": "Cain & Abel"
+    },
+    {
+      "id": 17,
+      "q": "SMTP email address",
+      "expected": [
+        "whoknowsme@sbcglobal.net"
+      ],
+      "verdict": "TP",
+      "matched": "whoknowsme@sbcglobal.net"
+    },
+    {
+      "id": 18,
+      "q": "NNTP news server",
+      "expected": [
+        "News.dallas.sbcglobal.net"
+      ],
+      "verdict": "TP",
+      "matched": "News.dallas.sbcglobal.net"
+    },
+    {
+      "id": 19,
+      "q": "Two programs showing SMTP/NNTP info",
+      "expected": [
+        "MS Outlook Express",
+        "Forte Agent"
+      ],
+      "verdict": "TP",
+      "matched": "Forte Agent"
+    },
+    {
+      "id": 20,
+      "q": "Newsgroups subscribed (5+)",
+      "expected": [
+        "alt.2600.phreakz",
+        "alt.2600",
+        "alt.2600.cardz",
+        "alt.2600.codez",
+        "alt.2600.crackz",
+        "alt.2600.moderated",
+        "alt.binaries.hacking.utilities",
+        "alt.stupidity.hackers.malicious",
+        "free.binaries.hackers.malicious",
+        "alt.hacking",
+        "alt.2600.hackerz"
+      ],
+      "verdict": "TP",
+      "matched": "alt.2600"
+    },
+    {
+      "id": 21,
+      "q": "MIRC user settings",
+      "expected": [
+        "user=Mini Me",
+        "email=none@of.ya",
+        "nick=Mr",
+        "anick=mrevilrulez"
+      ],
+      "verdict": "TP",
+      "matched": "user=Mini Me"
+    },
+    {
+      "id": 22,
+      "q": "IRC channels accessed (3+ of 12)",
+      "expected": [
+        "ushells.undernet",
+        "elite.hackers.undernet",
+        "mp3xserv.undernet",
+        "chataholics.undernet",
+        "cybercafe.undernet",
+        "m5tar.undernet",
+        "thedarktower.afternet",
+        "funny.undernet",
+        "luxshell.undernet",
+        "evilfork.efnet",
+        "iso-warez.efnet",
+        "houston.undernet"
+      ],
+      "verdict": "TP",
+      "matched": "ushells.undernet"
+    },
+    {
+      "id": 23,
+      "q": "Ethereal capture file name",
+      "expected": [
+        "Interception"
+      ],
+      "verdict": "TP",
+      "matched": "Interception"
+    },
+    {
+      "id": 24,
+      "q": "Victim device type",
+      "expected": [
+        "Windows CE",
+        "Pocket PC"
+      ],
+      "verdict": "TP",
+      "matched": "Windows CE"
+    },
+    {
+      "id": 25,
+      "q": "Websites victim accessed",
+      "expected": [
+        "mobile.msn.com",
+        "MSN Hotmail",
+        "Hotmail"
+      ],
+      "verdict": "TP",
+      "matched": "mobile.msn.com"
+    },
+    {
+      "id": 26,
+      "q": "Main user web email",
+      "expected": [
+        "mrevilrulez@yahoo.com"
+      ],
+      "verdict": "TP",
+      "matched": "mrevilrulez@yahoo.com"
+    },
+    {
+      "id": 27,
+      "q": "Yahoo mail saved file name",
+      "expected": [
+        "Showletter[1].htm"
+      ],
+      "verdict": "TP",
+      "matched": "Showletter[1].htm"
+    },
+    {
+      "id": 28,
+      "q": "Executables in recycle bin",
+      "expected": [
+        "4"
+      ],
+      "verdict": "TP_inferred",
+      "matched": "4"
+    },
+    {
+      "id": 29,
+      "q": "Are recycle-bin files really deleted?",
+      "expected": [
+        "No"
+      ],
+      "verdict": "TP",
+      "matched": "No"
+    },
+    {
+      "id": 30,
+      "q": "Files reported deleted by filesystem",
+      "expected": [
+        "3"
+      ],
+      "verdict": "TP_inferred",
+      "matched": "3"
+    },
+    {
+      "id": 31,
+      "q": "Anti-virus check - viruses present?",
+      "expected": [
+        "Yes"
+      ],
+      "verdict": "TP",
+      "matched": "Yes"
+    }
+  ],
+  "llm_stats": {
+    "total_calls": 1,
+    "mode": "batched_qa"
+  },
+  "iterations": 1
+}

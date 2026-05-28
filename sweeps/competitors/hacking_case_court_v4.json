@@ -1,0 +1,170 @@
+{
+  "root_cause": "Mr. Evil / Greg Schardt operating a wardriving station from a stolen/abandoned Dell Latitude CPi. Q1: AEE4FCD9301C03B3B054623CA261959A; Q2: Microsoft Windows XP; Q3: 2004-08-19 17:48:27; Q4: Central Daylight Time; Q5: Greg Schardt; Q6: N-1A9ODN6ZXK4LQ; Q7: N-1A9ODN6ZXK4LQ; Q8: 2004-08-27 10:46:33; Q9: 5; Q10: Mr. Evil",
+  "confirmed_findings": [
+    "Q1: AEE4FCD9301C03B3B054623CA261959A",
+    "Q2: Microsoft Windows XP",
+    "Q3: 2004-08-19 17:48:27",
+    "Q4: Central Daylight Time",
+    "Q5: Greg Schardt",
+    "Q6: N-1A9ODN6ZXK4LQ",
+    "Q7: N-1A9ODN6ZXK4LQ",
+    "Q8: 2004-08-27 10:46:33",
+    "Q9: 5",
+    "Q10: Mr. Evil",
+    "Q11: Mr. Evil",
+    "Q12: C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe",
+    "Q13: Xircom CardBus Ethernet 100 + Modem 56, Compaq WL110 Wireless LAN PC Card",
+    "Q14: 192.168.1.111, 0010a4933e09",
+    "Q15: Xircom",
+    "Q16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, Anonymizer, WinPcapInst",
+    "Q17: whoknowsme@sbcglobal.net",
+    "Q18: news.dallas.sbcglobal.net",
+    "Q19: Outlook Express, Forte Agent",
+    "Q20: alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz, alt.2600.phreakz",
+    "Q21: Mr, mrevilrulez, Mini Me",
+    "Q22: #Chataholics.UnderNet, #CyberCafe.UnderNet, #Elite.Hackers.UnderNet",
+    "Q23: interception",
+    "Q24: Windows CE (Pocket PC) - Version 4.20",
+    "Q25: http://www.2600.org, http://www.wardriving.com, http://www.ethereal.com",
+    "Q26: mrevilrulez@yahoo.com",
+    "Q27: ShowLetter[1].htm",
+    "Q28: lalsetup250.exe, netstumblerinstaller_0_4_0.exe, WinPcap_3_01_a.exe, ethereal-setup-0.10.6.exe",
+    "Q29: No",
+    "Q30: 365",
+    "Q31: Yes"
+  ],
+  "final_narrative": "Per-question summary:\nQ1: AEE4FCD9301C03B3B054623CA261959A\nQ2: Microsoft Windows XP\nQ3: 2004-08-19 17:48:27\nQ4: Central Daylight Time\nQ5: Greg Schardt\nQ6: N-1A9ODN6ZXK4LQ\nQ7: N-1A9ODN6ZXK4LQ\nQ8: 2004-08-27 10:46:33\nQ9: 5\nQ10: Mr. Evil\nQ11: Mr. Evil\nQ12: C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe\nQ13: Xircom CardBus Ethernet 100 + Modem 56, Compaq WL110 Wireless LAN PC Card\nQ14: 192.168.1.111, 0010a4933e09\nQ15: Xircom\nQ16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, Anonymizer, WinPcapInst\nQ17: whoknowsme@sbcglobal.net\nQ18: news.dallas.sbcglobal.net\nQ19: Outlook Express, Forte Agent\nQ20: alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz, alt.2600.phreakz\nQ21: Mr, mrevilrulez, Mini Me\nQ22: #Chataholics.UnderNet, #CyberCafe.UnderNet, #Elite.Hackers.UnderNet\nQ23: interception\nQ24: Windows CE (Pocket PC) - Version 4.20\nQ25: http://www.2600.org, http://www.wardriving.com, http://www.ethereal.com\nQ26: mrevilrulez@yahoo.com\nQ27: ShowLetter[1].htm\nQ28: lalsetup250.exe, netstumblerinstaller_0_4_0.exe, WinPcap_3_01_a.exe, ethereal-setup-0.10.6.exe\nQ29: No\nQ30: 365\nQ31: Yes",
+  "hypotheses": [],
+  "findings": [
+    {
+      "question_id": 1,
+      "answer": "AEE4FCD9301C03B3B054623CA261959A"
+    },
+    {
+      "question_id": 2,
+      "answer": "Microsoft Windows XP"
+    },
+    {
+      "question_id": 3,
+      "answer": "2004-08-19 17:48:27"
+    },
+    {
+      "question_id": 4,
+      "answer": "Central Daylight Time"
+    },
+    {
+      "question_id": 5,
+      "answer": "Greg Schardt"
+    },
+    {
+      "question_id": 6,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 7,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 8,
+      "answer": "2004-08-27 10:46:33"
+    },
+    {
+      "question_id": 9,
+      "answer": "5"
+    },
+    {
+      "question_id": 10,
+      "answer": "Mr. Evil"
+    },
+    {
+      "question_id": 11,
+      "answer": "Mr. Evil"
+    },
+    {
+      "question_id": 12,
+      "answer": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe"
+    },
+    {
+      "question_id": 13,
+      "answer": "Xircom CardBus Ethernet 100 + Modem 56, Compaq WL110 Wireless LAN PC Card"
+    },
+    {
+      "question_id": 14,
+      "answer": "192.168.1.111, 0010a4933e09"
+    },
+    {
+      "question_id": 15,
+      "answer": "Xircom"
+    },
+    {
+      "question_id": 16,
+      "answer": "Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, Anonymizer, WinPcapInst"
+    },
+    {
+      "question_id": 17,
+      "answer": "whoknowsme@sbcglobal.net"
+    },
+    {
+      "question_id": 18,
+      "answer": "news.dallas.sbcglobal.net"
+    },
+    {
+      "question_id": 19,
+      "answer": "Outlook Express, Forte Agent"
+    },
+    {
+      "question_id": 20,
+      "answer": "alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz, alt.2600.phreakz"
+    },
+    {
+      "question_id": 21,
+      "answer": "Mr, mrevilrulez, Mini Me"
+    },
+    {
+      "question_id": 22,
+      "answer": "#Chataholics.UnderNet, #CyberCafe.UnderNet, #Elite.Hackers.UnderNet"
+    },
+    {
+      "question_id": 23,
+      "answer": "interception"
+    },
+    {
+      "question_id": 24,
+      "answer": "Windows CE (Pocket PC) - Version 4.20"
+    },
+    {
+      "question_id": 25,
+      "answer": "http://www.2600.org, http://www.wardriving.com, http://www.ethereal.com"
+    },
+    {
+      "question_id": 26,
+      "answer": "mrevilrulez@yahoo.com"
+    },
+    {
+      "question_id": 27,
+      "answer": "ShowLetter[1].htm"
+    },
+    {
+      "question_id": 28,
+      "answer": "lalsetup250.exe, netstumblerinstaller_0_4_0.exe, WinPcap_3_01_a.exe, ethereal-setup-0.10.6.exe"
+    },
+    {
+      "question_id": 29,
+      "answer": "No"
+    },
+    {
+      "question_id": 30,
+      "answer": "365"
+    },
+    {
+      "question_id": 31,
+      "answer": "Yes"
+    }
+  ],
+  "total_iterations": 1,
+  "llm_stats": {
+    "total_calls": 1,
+    "mode": "batched_qa"
+  },
+  "audit_log": "n/a — batched Q&A mode does not produce JSONL transcript"
+}

@@ -1,0 +1,150 @@
+{
+  "root_cause": "Mr. Evil / Greg Schardt operating a wardriving station from a stolen/abandoned Dell Latitude CPi. Q1: AEE4FCD9301C03B3B054623CA261959A; Q2: Microsoft Windows XP; Q3: 2004-08-19 17:48:27 CDT; Q4: Central Daylight Time; Q5: Greg Schardt; Q6: N-1A9ODN6ZXK4LQ; Q7: N-1A9ODN6ZXK4LQ; Q8: 2004-08-27 10:46:33 CDT; Q9: 5; Q10: Mr. Evil",
+  "confirmed_findings": [
+    "Q1: AEE4FCD9301C03B3B054623CA261959A",
+    "Q2: Microsoft Windows XP",
+    "Q3: 2004-08-19 17:48:27 CDT",
+    "Q4: Central Daylight Time",
+    "Q5: Greg Schardt",
+    "Q6: N-1A9ODN6ZXK4LQ",
+    "Q7: N-1A9ODN6ZXK4LQ",
+    "Q8: 2004-08-27 10:46:33 CDT",
+    "Q9: 5",
+    "Q10: Mr. Evil",
+    "Q11: Mr. Evil",
+    "Q12: irunin.ini contains %REGOWNER%=Greg Schardt and %LANUSER%=Mr. Evil",
+    "Q13: 4",
+    "Q14: 192.168.1.111 and 0010a4933e09",
+    "Q15: Xircom",
+    "Q16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, mIRC, Forte Agent",
+    "Q17: whoknowsme@sbcglobal.net",
+    "Q18: news.dallas.sbcglobal.net",
+    "Q19: Outlook Express and Forte Agent",
+    "Q20: alt.2600, alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz",
+    "Q21: LastRun = 1093015489,0",
+    "Q22: Insufficient evidence",
+    "Q23: interception",
+    "Q24: Insufficient evidence",
+    "Q25: http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/",
+    "Q26: whoknowsme@sbcglobal.net",
+    "Q27: ShowLetter[1].htm",
+    "Q28: Insufficient evidence",
+    "Q29: Insufficient evidence",
+    "Q30: 365",
+    "Q31: Insufficient evidence"
+  ],
+  "final_narrative": "Per-question summary:\nQ1: AEE4FCD9301C03B3B054623CA261959A\nQ2: Microsoft Windows XP\nQ3: 2004-08-19 17:48:27 CDT\nQ4: Central Daylight Time\nQ5: Greg Schardt\nQ6: N-1A9ODN6ZXK4LQ\nQ7: N-1A9ODN6ZXK4LQ\nQ8: 2004-08-27 10:46:33 CDT\nQ9: 5\nQ10: Mr. Evil\nQ11: Mr. Evil\nQ12: irunin.ini contains %REGOWNER%=Greg Schardt and %LANUSER%=Mr. Evil\nQ13: 4\nQ14: 192.168.1.111 and 0010a4933e09\nQ15: Xircom\nQ16: Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, mIRC, Forte Agent\nQ17: whoknowsme@sbcglobal.net\nQ18: news.dallas.sbcglobal.net\nQ19: Outlook Express and Forte Agent\nQ20: alt.2600, alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz\nQ21: LastRun = 1093015489,0\nQ22: Insufficient evidence\nQ23: interception\nQ24: Insufficient evidence\nQ25: http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/\nQ26: whoknowsme@sbcglobal.net\nQ27: ShowLetter[1].htm\nQ28: Insufficient evidence\nQ29: Insufficient evidence\nQ30: 365\nQ31: Insufficient evidence",
+  "hypotheses": [],
+  "findings": [
+    {
+      "question_id": 1,
+      "answer": "AEE4FCD9301C03B3B054623CA261959A"
+    },
+    {
+      "question_id": 2,
+      "answer": "Microsoft Windows XP"
+    },
+    {
+      "question_id": 3,
+      "answer": "2004-08-19 17:48:27 CDT"
+    },
+    {
+      "question_id": 4,
+      "answer": "Central Daylight Time"
+    },
+    {
+      "question_id": 5,
+      "answer": "Greg Schardt"
+    },
+    {
+      "question_id": 6,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 7,
+      "answer": "N-1A9ODN6ZXK4LQ"
+    },
+    {
+      "question_id": 8,
+      "answer": "2004-08-27 10:46:33 CDT"
+    },
+    {
+      "question_id": 9,
+      "answer": "5"
+    },
+    {
+      "question_id": 10,
+      "answer": "Mr. Evil"
+    },
+    {
+      "question_id": 11,
+      "answer": "Mr. Evil"
+    },
+    {
+      "question_id": 12,
+      "answer": "irunin.ini contains %REGOWNER%=Greg Schardt and %LANUSER%=Mr. Evil"
+    },
+    {
+      "question_id": 13,
+      "answer": "4"
+    },
+    {
+      "question_id": 14,
+      "answer": "192.168.1.111 and 0010a4933e09"
+    },
+    {
+      "question_id": 15,
+      "answer": "Xircom"
+    },
+    {
+      "question_id": 16,
+      "answer": "Cain & Abel v2.5 beta45, Ethereal, Network Stumbler, Look@LAN, mIRC, Forte Agent"
+    },
+    {
+      "question_id": 17,
+      "answer": "whoknowsme@sbcglobal.net"
+    },
+    {
+      "question_id": 18,
+      "answer": "news.dallas.sbcglobal.net"
+    },
+    {
+      "question_id": 19,
+      "answer": "Outlook Express and Forte Agent"
+    },
+    {
+      "question_id": 20,
+      "answer": "alt.2600, alt.2600.cardz, alt.2600.codez, alt.2600.crackz, alt.2600.hackerz"
+    },
+    {
+      "question_id": 21,
+      "answer": "LastRun = 1093015489,0"
+    },
+    {
+      "question_id": 23,
+      "answer": "interception"
+    },
+    {
+      "question_id": 25,
+      "answer": "http://www.maktoob.com/, http://www.ethereal.com/, http://www.wardriving.com/, http://4.12.220.254/temp/, http://www.drudgereport.com/, http://www.majorgeeks.com/, http://www.yahoo.com/, http://www.2600.org/"
+    },
+    {
+      "question_id": 26,
+      "answer": "whoknowsme@sbcglobal.net"
+    },
+    {
+      "question_id": 27,
+      "answer": "ShowLetter[1].htm"
+    },
+    {
+      "question_id": 30,
+      "answer": "365"
+    }
+  ],
+  "total_iterations": 1,
+  "llm_stats": {
+    "total_calls": 1,
+    "mode": "batched_qa"
+  },
+  "audit_log": "n/a — batched Q&A mode does not produce JSONL transcript"
+}
