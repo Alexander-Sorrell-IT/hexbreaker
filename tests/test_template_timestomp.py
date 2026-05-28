@@ -76,6 +76,30 @@ def test_decoys_appear_in_mock_mft(tmp_path: Path) -> None:
         assert name in mft, f"decoy name {name!r} missing from MFT"
 
 
+def test_evil_row_not_always_at_position_zero(tmp_path: Path) -> None:
+    """Regression: the evil row must not be at MFT index 0 every time.
+
+    Without `rng.shuffle(rows)` in the template, the evil row was always rows[0]
+    and any agent that picks the first MFT data row scored F1=1.0 without doing
+    forensic reasoning. This test confirms the shuffle is actually scrambling
+    position across seeds — if all 10 seeds put evil at row 0, the shuffle is
+    broken and the F1 measurement is a position artifact.
+    """
+    positions = []
+    for seed in range(10):
+        case_dir = tmp_path / f"case-{seed}"
+        template_timestomp.generate(seed=seed, out_dir=case_dir)
+        _, answer = load_case(case_dir)
+        _parent, evil_name = _path_parts(answer.expected_findings[0].target)
+        mft = (case_dir / "mock_outputs" / "mft.csv").read_text().splitlines()
+        for i, row in enumerate(mft[1:]):  # skip header
+            if row.split(",")[1] == evil_name:
+                positions.append(i)
+                break
+    # Across 10 seeds, at LEAST 2 distinct positions for the evil row.
+    assert len(set(positions)) >= 2, f"evil row positions across seeds: {positions} — shuffle is broken or has insufficient variance"
+
+
 def test_evil_row_has_divergent_si_fn_timestamps(tmp_path: Path) -> None:
     """The signature of timestomp — the row for the evil file must have $SI ≠ $FN."""
     case_dir = tmp_path / "case"

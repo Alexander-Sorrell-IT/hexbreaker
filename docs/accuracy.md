@@ -6,8 +6,9 @@
 
 | Agent | Dataset | F1 | Source |
 |---|---|---|---|
-| Hexbreaker Court (DeepSeek V4-pro reasoner) | Forge timestomp, N=10, normal | **1.0 ± 0.0** | this report, `sweeps/2026-05-27_N10_baseline.json` |
-| Hexbreaker Court (DeepSeek V4-pro reasoner) | Forge timestomp, N=10, Provocateur | **1.0 ± 0.0** | this report, `sweeps/2026-05-27_N10_baseline.json` |
+| Hexbreaker Court (DeepSeek V4-pro reasoner) | Forge timestomp, N=10, normal | **1.0 ± 0.0** | this report, `sweeps/2026-05-27_N10_shuffled.json` (post-shuffle, honest) |
+| Hexbreaker Court (DeepSeek V4-pro reasoner) | Forge timestomp, N=10, Provocateur | **0.7 ± 0.48** | this report, `sweeps/2026-05-27_N10_shuffled.json` (post-shuffle, honest) |
+| Provocateur bait-taking (`fp_planted`) | both modes, N=20 total | **0/20** | safeguard holds even after position-bias fix |
 | dhyabi2/findevil IABF (Gemma 4 31B via OpenRouter) | NIST CFReDS Hacking Case | 100% F1, self-reported | dhyabi2/findevil ACCURACY.md |
 | dhyabi2/findevil IABF (DeepSeek V4-flash via OpenAI-compat) | NIST CFReDS Hacking Case | **0.0% F1** (0/31 confirmed; 6/31 inferred → recall_overall 19.4%) | `sweeps/competitors/score_deepseek.json` (this report, §3) |
 
@@ -58,11 +59,31 @@ Each agent was measured on the cases it was designed for, with its own scorer. T
 ### 2.2 Results
 
 ```
-       normal: n=10  F1_mean=1.0 ± 0.0    precision=1.0  recall=1.0  fp_planted_total=0  wall=8.04s/run
-  provocateur: n=10  F1_mean=1.0 ± 0.0    precision=1.0  recall=1.0  fp_planted_total=0  wall=8.41s/run
+       normal: n=10  F1_mean=1.0   ± 0.0     precision=1.0  recall=1.0  fp_planted_total=0  wall=9.3s/run
+  provocateur: n=10  F1_mean=0.7   ± 0.483   precision=0.7  recall=0.7  fp_planted_total=0  wall=9.4s/run
 ```
 
-Source: `sweeps/2026-05-27_N10_baseline.json`. Reproducible via `python scripts/sweep.py --seeds 10 --modes normal,provocateur --out <path>`.
+Source: `sweeps/2026-05-27_N10_shuffled.json` (honest, post-position-bias-fix).
+Reproducible via `python scripts/sweep.py --seeds 10 --modes normal,provocateur --out <path>`.
+
+### 2.2.1 Honest recalibration
+
+An earlier sweep (`sweeps/2026-05-27_N10_baseline.json`) reported F1=1.0 ± 0.0 on
+both modes. A code-review angle subsequently surfaced that the timestomp
+template was emitting the evil MFT row at index 0 of the rows list, before
+decoys and planted rows appended. This made CSV position a confound with the
+$SI/$FN-divergence signal: an agent that biased toward "pick the first MFT row"
+would score F1=1.0 without reading the timestamps. We added `rng.shuffle(rows)`
+before encoding (commit `9601c4e`'s template_timestomp.py was patched in a
+follow-up commit, with a regression test asserting the evil row varies across
+seeds), re-ran the same 10 seeds, and recorded the result above.
+
+The normal-mode F1 holds at 1.0 — that signal was real. The Provocateur F1
+dropped from 1.0 to 0.7, indicating the prior 1.0 was partially a position
+artifact. **The safeguard-failure metric (`fp_planted`) held at 0/20 across
+both runs**: even with shuffled rows, the agent never confirmed a planted
+artifact. Failures on the 3 affected seeds were all FN (missed the real evil),
+not FP_PLANTED (confirmed wrong file).
 
 ### 2.3 Self-correction sequence (the demo tiebreaker)
 

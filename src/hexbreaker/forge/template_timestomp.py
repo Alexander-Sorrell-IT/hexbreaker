@@ -131,6 +131,10 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
                 f"{en},{name},{decoy_parent},"
                 f"{_iso(plant_si)},{_iso(plant_fn)},{_iso(plant_si)}\n"
             )
+    # Shuffle row order — position must not be a confound with the $SI/$FN signal.
+    # Without this, the evil row is always at index 0 and any agent that biases
+    # toward "pick row #1" scores F1=1.0 without doing forensic reasoning.
+    rng.shuffle(rows)
     mft_csv = (header + "".join(rows)).encode()
 
     yara_hit = f"{evil_name}: APT_DRIVER_HEURISTIC\n".encode()
