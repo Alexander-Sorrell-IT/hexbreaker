@@ -43,6 +43,8 @@ class Kind(str, Enum):
     CLAIM = "claim"
     VERDICT = "verdict"
     SYSTEM_EVENT = "system_event"
+    PROVOCATION = "provocation"
+    WITNESS_OPINION = "witness_opinion"
 
 
 class StepRecord(BaseModel):

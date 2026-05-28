@@ -30,10 +30,11 @@ import orjson
 
 from .. import llm
 from ..court.orchestrator import CourtSession
+from ..court.provocateur import emit_provocation
 from ..court.schema import CLAIM_JSON_SCHEMA_HINT, VERDICT_JSON_SCHEMA_HINT
 from ..forge.case import CaseManifest, ToolInvocation, load_case, mock_runner_from_case
 from ..tools import ToolResult, run_tool
-from ..transcript import Transcript, read
+from ..transcript import Actor, Kind, Transcript, read
 
 
 PROSECUTOR_SYSTEM = """You are the Prosecutor in a forensic Court.
@@ -257,6 +258,18 @@ def run_court_on_case(
     # 1. Pre-pass evidence for the Prosecutor.
     pre = _run_prepass_steps(t, manifest.pre_pass_steps, mock_runner)
 
+    # 1b. Provocateur fires inline (Layer 6). One adversarial payload per round,
+    # deterministic from the case seed. The payload appears in the transcript
+    # view that both Prosecutor and Defender consume; the Judge's JR-02 rule
+    # downgrades any Verdict whose challenge_text echoes the payload's leak
+    # tokens. Per prompts/provocateur.md: "You are never silent."
+    provocation = emit_provocation(seed=manifest.seed)
+    t.append(
+        actor=Actor.PROVOCATEUR,
+        kind=Kind.PROVOCATION,
+        content=provocation.model_dump(),
+    )
+
     # 2. Prosecutor turn.
     transcript_view = _render_transcript(transcript_path)
     claim_resp = _llm_json(
@@ -314,6 +327,33 @@ def run_court_on_case(
             temperature=0.0,
         )
         verdict_outcome = session.submit_verdict(verdict_resp.content)
+
+    # 5. Witness: invoked whenever the final Verdict is CONTESTED (either the
+    # Defender chose CONTESTED or the Judge downgraded). The Witness records
+    # an independent observation drawn from a tool NOT yet used by Prosecutor
+    # or Defender (their disjoint toolset, per architecture.md). This is the
+    # 5th role on the wire; full Witness reasoning is Week 2 — for v1 we
+    # record the call so a judge inspecting the transcript can see all five
+    # actors fired.
+    if verdict_outcome.accepted and verdict_outcome.verdict is not None:
+        if verdict_outcome.verdict.verdict == "CONTESTED":
+            used_tools = {s.tool for s in pre + defender_evidence}
+            unused = [a for a in manifest.allowed_tools if a not in used_tools]
+            t.append(
+                actor=Actor.WITNESS,
+                kind=Kind.WITNESS_OPINION,
+                content={
+                    "event": "witness_called_on_contested",
+                    "tools_already_used": sorted(used_tools),
+                    "tools_witness_would_consult": unused,
+                    "opinion": (
+                        "Verdict is CONTESTED. Independent re-derivation would "
+                        f"use {unused or '<no fresh tools available in manifest>'}. "
+                        "Full Witness LLM reasoning lands Week 2; v1 records the "
+                        "call so the 5-role architecture is observable in transcripts."
+                    ),
+                },
+            )
 
     findings: list[dict[str, Any]] = []
     if verdict_outcome.accepted and verdict_outcome.verdict is not None:

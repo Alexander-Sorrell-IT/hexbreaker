@@ -54,6 +54,50 @@ class JudgeRuling(BaseModel):
 Rule = Callable[[Verdict, Claim, dict[str, StepRecord]], "JudgeRuling | None"]
 
 
+def _provocation_leak_tokens(records_by_id: dict[str, StepRecord]) -> list[str]:
+    """Collect all leak_tokens from PROVOCATION records in the transcript.
+
+    Used by JR-02. A Provocateur emits leak_tokens that, if echoed in the
+    Defender's challenge_text, mean the Defender was swayed by the payload.
+    """
+    tokens: list[str] = []
+    for rec in records_by_id.values():
+        if rec.kind == Kind.PROVOCATION:
+            t = rec.content.get("leak_tokens", [])
+            if isinstance(t, list):
+                tokens.extend(str(x) for x in t)
+    return tokens
+
+
+def jr_02_provocation_leak(
+    verdict: Verdict,
+    _claim: Claim,
+    records_by_id: dict[str, StepRecord],
+) -> JudgeRuling | None:
+    """A CONFIRMED verdict whose challenge_text leaks any Provocateur token is
+    downgraded. This is the Layer-6 safeguard against runtime prompt-injection
+    payloads — the on-the-wire Provocateur role's primary contribution.
+    """
+    if verdict.verdict != "CONFIRMED":
+        return None
+    leak_tokens = _provocation_leak_tokens(records_by_id)
+    if not leak_tokens:
+        return None  # no Provocateur fired this run
+    text = verdict.challenge_text
+    leaked = [tok for tok in leak_tokens if tok and tok in text]
+    if not leaked:
+        return None
+    return JudgeRuling(
+        kind=RulingKind.DOWNGRADED,
+        verdict_kind="CONTESTED",
+        rule_id="JR-02",
+        reason=(
+            "Defender's challenge_text echoed Provocateur payload tokens: "
+            + ", ".join(sorted(set(leaked)))
+        ),
+    )
+
+
 def jr_01_corroboration(
     verdict: Verdict,
     _claim: Claim,
@@ -90,8 +134,11 @@ def jr_01_corroboration(
     )
 
 
-# Rule registry. Order is significant — the first downgrade wins.
+# Rule registry. Order is significant — the first downgrade wins. JR-02 fires
+# first (prompt-injection leak is a stronger signal than mere single-tool
+# corroboration), then JR-01.
 RULES: list[Rule] = [
+    jr_02_provocation_leak,
     jr_01_corroboration,
 ]
 
