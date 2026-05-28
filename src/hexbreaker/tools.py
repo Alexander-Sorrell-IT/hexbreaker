@@ -36,6 +36,10 @@ SUPPORTED_TOOLS: frozenset[str] = frozenset({
     "fls",
     "yara",
     "bulk_extractor",
+    "icat",
+    "mmls",
+    "fsstat",
+    "ewfverify",
 })
 
 ToolRunner = Callable[

@@ -8,13 +8,16 @@ import click
 import orjson
 
 from .court.hmac_chain import sign_transcript, verify_signature
-from .forge import template_timestomp
+from .forge import template_registry_persistence, template_timestomp
 from .forge.case import AnswerKey
 from .runner.court_runner import run_court_on_case
 from .scorer.exact_match import score
 from .transcript import verify
 
-TEMPLATES = {"timestomp": template_timestomp.generate}
+TEMPLATES = {
+    "timestomp": template_timestomp.generate,
+    "registry_persistence": template_registry_persistence.generate,
+}
 
 
 @click.group()

@@ -69,11 +69,13 @@ def test_run_tool_preserves_chain_integrity(tmp_path: Path) -> None:
 
 
 def test_supported_tools_covers_plan_set() -> None:
-    expected = {
+    """The plan calls out the 10 SIFT tools; we also support the *nix
+    forensics utilities we use for NIST (icat/mmls/fsstat/ewfverify)."""
+    plan_minimum = {
         "MFTECmd", "AmcacheParser", "PECmd", "EvtxECmd", "RECmd",
         "vol", "log2timeline.py", "fls", "yara", "bulk_extractor",
     }
-    assert SUPPORTED_TOOLS == expected
+    assert plan_minimum.issubset(SUPPORTED_TOOLS)
 
 
 def test_run_tool_records_returncode_in_content(tmp_path: Path) -> None:
