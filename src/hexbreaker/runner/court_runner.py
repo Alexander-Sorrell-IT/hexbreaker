@@ -230,10 +230,6 @@ def run_court_on_case(
     case_path = Path(case_dir)
     manifest, _ = load_case(case_path)
 
-    if client is None:
-        llm.load_env()
-        client = llm.DeepSeekClient()
-
     transcript_path = Path(transcript_path) if transcript_path else case_path / "transcript.jsonl"
     findings_path = Path(out_findings_path) if out_findings_path else case_path / "findings.json"
 
@@ -242,7 +238,9 @@ def run_court_on_case(
     # transcript.jsonl whose records reference `stdout_path: "../../etc/passwd"`,
     # which would then be inlined into the first Prosecutor prompt and exfilled
     # to the LLM API. _render_transcript also defends against this at the
-    # sidecar-resolution layer; this is the second line of defense.
+    # sidecar-resolution layer; this is the second line of defense. This guard
+    # runs before any network client is constructed so it fires regardless of
+    # whether DEEPSEEK_API_KEY is set (keeps the security test hermetic).
     if transcript_path.exists() and transcript_path.stat().st_size > 0:
         raise RuntimeError(
             f"refusing to resume pre-existing transcript {transcript_path} — "
@@ -250,6 +248,10 @@ def run_court_on_case(
             f"path-traversal exfiltration vector. Delete it or pass an explicit "
             f"--transcript path outside the case dir if you really mean to resume."
         )
+
+    if client is None:
+        llm.load_env()
+        client = llm.DeepSeekClient()
 
     t = Transcript.open(transcript_path)
     session = CourtSession(t)

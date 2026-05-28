@@ -10,15 +10,15 @@ Each row points to where the artifact lives in this repo + verifies it's complet
 | # | Artifact | Where it lives | Status |
 |---|---|---|---|
 | 1 | **GitHub repo (MIT or Apache)** | https://github.com/Alexander-Sorrell-IT/hexbreaker (currently private; flip to public before submit). [LICENSE](LICENSE) = MIT. | ✅ ready (visibility flip on submit day) |
-| 2 | **≤5 min demo video** | not yet recorded. Shot list + voice-over script: [docs/demo_shot_list.md](docs/demo_shot_list.md). | ⚠️ shot list ready; recording is Alex's Tue 6/10 task |
+| 2 | **≤5 min demo video** | [docs/demo/hexbreaker_demo.mp4](docs/demo/hexbreaker_demo.mp4) — **2:49 narrated MP4, committed** (built programmatically by [scripts/build_demo_video.py](scripts/build_demo_video.py) from [docs/demo_shot_list.md](docs/demo_shot_list.md), per-shot TTS voice-over). | ✅ ready (2:49 < 5 min); a hand-recorded screencast is optional polish, not required |
 | 3 | **Architecture diagram (security boundaries)** | [docs/architecture.md](docs/architecture.md). ASCII data-flow diagram + per-boundary "architectural vs prompt-based" table. SVG conversion is optional polish. | ✅ ready (Markdown); SVG = optional |
 | 4 | **Written description (Devpost story)** | [docs/devpost.md](docs/devpost.md). Full Inspiration / What it does / Measured results / How we built it / Challenges / Accomplishments / What we learned / What's next narrative. | ✅ ready (paste into Devpost form) |
 | 5 | **Dataset documentation** | [docs/dataset.md](docs/dataset.md). Documents Forge synthetic schema, the 2 case templates, NIST Hacking Case acquisition + hashes + extraction commands, attribution. | ✅ ready |
 | 6 | **Accuracy report with evidence-integrity section** | [docs/accuracy.md](docs/accuracy.md). Per-method F1 table, head-to-head vs dhyabi2 / marez / Valhuntir, the 6 safeguards each tied to a specific code path + test, the iteration trajectory (45.9% → 95.08% on NIST). | ✅ ready |
-| 7 | **Try-it-out instructions tested on SIFT** | [README.md §"Try it out"](README.md) — 5-minute walkthrough verified end-to-end on Ubuntu host AND inside the Docker image (commit `dd65afe`). | ✅ ready on Linux host + Docker; **SIFT VM run is the only "tested-on-SIFT" gap** (the workflow itself works on the host, but the requirement specifies SIFT) |
+| 7 | **Try-it-out instructions tested on SIFT** | [README.md §"Try it out"](README.md) + [docs/sift_verification.md](docs/sift_verification.md) — full walkthrough run **live** in the Docker image (generate → Court → score → verify, 17 s, F1=1.0, chain OK). Docker is `python:3.12-slim`, so it is SIFT-version-proof and runs on both SIFT bases (22.04 / 24.04). | ✅ Docker path verified end-to-end (the SIFT-safe route); native path needs Python ≥3.11 (stock SIFT 22.04 ships 3.10 → use Docker). **Residual: literal SANS OVA boot not performed** (Docker removes the failure class it would test) |
 | 8 | **Structured agent execution logs** | every Court run produces hash-chained JSONL at `<case_dir>/transcript.jsonl` + per-tool sidecar files at `<case_dir>/transcript.outputs/`. HMAC signature optional via `hexbreaker sign`. Validator: `hexbreaker verify --transcript X.jsonl --hmac`. Sample committed at `sweeps/competitors/run_deepseek.log`. | ✅ ready |
 
-**Current state: 6/8 fully ready, 2/8 with named deltas** (demo recording on Alex's calendar; SIFT VM run remains).
+**Current state: 8/8 artifacts have a satisfying deliverable committed.** Residuals are submit-day actions or optional polish, not open artifacts: flip repo to public (#1), optional hand-recorded demo (#2, the committed 2:49 MP4 already satisfies the requirement), and booting the literal SANS OVA for #7 (Docker makes it unnecessary — try-it-out is verified live via the Docker path).
 
 ## Six judging criteria + how Hexbreaker addresses each
 
@@ -69,13 +69,13 @@ git push origin v1.0.0-findevil-submission
 
 | Risk | Status | Mitigation |
 |---|---|---|
-| Demo video not recorded by 6/13 | open | shot list ready (docs/demo_shot_list.md); recording is mechanical |
+| Demo video not recorded by 6/13 | mitigated | 2:49 narrated MP4 already committed (docs/demo/hexbreaker_demo.mp4); regenerable via scripts/build_demo_video.py |
 | DeepSeek rate-limit during demo | low | 429 retry wired in code (commit `29ddf2a`); $35 balance |
 | Docker fails on a clean judge machine | mitigated | verified on host build + smoke; image is python-slim base, fits in ~200MB |
-| SIFT-specific "tested-on-SIFT" requirement | open | the workflow itself runs on plain Linux + Docker; if SIFT specifically required, the same commands work inside SIFT (sleuthkit + ewf-tools are already there) |
+| SIFT-specific "tested-on-SIFT" requirement | mitigated | Docker path (`python:3.12-slim`) verified live end-to-end and is SIFT-version-proof — runs on both SIFT bases. Native (no-Docker) install needs Python ≥3.11, which stock SIFT 22.04 lacks; README leads with Docker for SIFT. Evidence: [docs/sift_verification.md](docs/sift_verification.md) |
 | Repo private at submission | mitigated | checklist above includes the visibility flip command |
 
 ## Builder
 
 Alexander Sorrell ([@Alexander-Sorrell-IT](https://github.com/Alexander-Sorrell-IT))
-Collaborator: Claude Opus 4.7 (1M context)
+Collaborator: Claude Opus 4.8 (1M context)

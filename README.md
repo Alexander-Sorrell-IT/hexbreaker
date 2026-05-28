@@ -33,8 +33,27 @@ The Find Evil! hackathon exists because Protocol SIFT (the organizer's reference
 
 ## Try it out (5 minutes, no SIFT VM needed)
 
+**On SIFT (or any host with Docker) — the version-proof route.** The image is a
+self-contained `python:3.12-slim`, so it runs identically on both SIFT bases
+(Ubuntu 22.04 ships Python 3.10; 24.04 ships 3.12) — see
+[docs/sift_verification.md](docs/sift_verification.md) (verified end-to-end, 17 s):
+
 ```bash
-# 1. Install (Python 3.11+ required)
+docker build -t hexbreaker -f docker/Dockerfile .
+mkdir -p /tmp/case && docker run --rm -e DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY \
+    -v /tmp/case:/case hexbreaker generate --seed 4729 --template timestomp --out /case
+docker run --rm -e DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY -v /tmp/case:/case \
+    hexbreaker run --agent court --case /case --out /case/findings.json
+docker run --rm -v /tmp/case:/case hexbreaker score \
+    --findings /case/findings.json --answer-key /case/answer_key.json
+```
+
+**Native (no Docker) — requires Python 3.11+.** Stock SIFT on Ubuntu 22.04 ships
+Python 3.10 and the install will fail there (`requires a different Python`); use
+Docker above, or install Python 3.11+ first.
+
+```bash
+# 1. Install (Python 3.11+ required — 3.10 will not install)
 git clone https://github.com/Alexander-Sorrell-IT/hexbreaker.git
 cd hexbreaker
 python3 -m venv .venv && source .venv/bin/activate

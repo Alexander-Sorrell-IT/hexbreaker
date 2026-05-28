@@ -19,6 +19,7 @@ env/
 # Runtime outputs
 transcripts/*.jsonl
 transcripts/*.log
+docs/demo/_build/
 cases/generated/
 cases/starter/*.E01
 cases/starter/*.dd
