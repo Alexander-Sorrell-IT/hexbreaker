@@ -229,7 +229,15 @@ def run_court_on_case(
     *,
     client: llm.DeepSeekClient | None = None,
     transcript_path: str | Path | None = None,
+    prosecutor_system: str | None = None,
+    defender_system: str | None = None,
 ) -> CourtRunResult:
+    # The default prompts are timestomp/MFT-specific. A non-Forge dataset (e.g.
+    # the NIST recycle-bin adapter) can supply domain-appropriate system prompts
+    # WITHOUT changing the FSM, Judge, signing, or scoring path — the prompts
+    # state only general claim/verdict conventions, never expected answers.
+    prosecutor_system = prosecutor_system or PROSECUTOR_SYSTEM
+    defender_system = defender_system or DEFENDER_SYSTEM
     case_path = Path(case_dir)
     manifest, _ = load_case(case_path)
 
@@ -279,7 +287,7 @@ def run_court_on_case(
     transcript_view = _render_transcript(transcript_path)
     claim_resp = _llm_json(
         client,
-        system=PROSECUTOR_SYSTEM,
+        system=prosecutor_system,
         user=f"Transcript so far:\n{transcript_view}\n\nEmit your Claim now.",
         model=llm.DEEPSEEK_CHAT,
     )
@@ -290,7 +298,7 @@ def run_court_on_case(
         hint = _citation_hint(pre)
         claim_resp = _llm_json(
             client,
-            system=PROSECUTOR_SYSTEM,
+            system=prosecutor_system,
             user=f"Transcript so far:\n{transcript_view}\n\n{hint}\n\nEmit the Claim now.",
             model=llm.DEEPSEEK_CHAT,
             temperature=0.0,
@@ -308,7 +316,7 @@ def run_court_on_case(
     transcript_view = _render_transcript(transcript_path)
     verdict_resp = _llm_json(
         client,
-        system=DEFENDER_SYSTEM,
+        system=defender_system,
         user=(
             f"Transcript:\n{transcript_view}\n\n"
             f"Claim under review:\n{claim_outcome.claim.model_dump_json()}\n\n"
@@ -322,7 +330,7 @@ def run_court_on_case(
         hint = _citation_hint(citable)
         verdict_resp = _llm_json(
             client,
-            system=DEFENDER_SYSTEM,
+            system=defender_system,
             user=(
                 f"Transcript:\n{transcript_view}\n\n"
                 f"Claim:\n{claim_outcome.claim.model_dump_json()}\n\n"
