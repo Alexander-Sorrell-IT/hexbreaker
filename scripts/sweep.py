@@ -19,7 +19,10 @@ from pathlib import Path
 
 import orjson
 
+import os
+
 from hexbreaker import llm
+from hexbreaker.court.hmac_chain import HMAC_ENV, verify_signature
 from hexbreaker.forge import template_registry_persistence, template_timestomp
 from hexbreaker.forge.case import load_case
 from hexbreaker.runner.court_runner import run_court_on_case
@@ -50,6 +53,16 @@ def run_one(
         result = run_court_on_case(case_dir, client=client)
         wall = time.monotonic() - t0
         ok, reason = verify(result.transcript_path)
+        # run_court_on_case signs the transcript when HEXBREAKER_HMAC_PASSWORD is
+        # set; record whether the HMAC signature validates so the sweep proves
+        # tamper-evidence end-to-end, not just chain integrity.
+        if os.environ.get(HMAC_ENV):
+            sig_result = verify_signature(result.transcript_path)
+            hmac_ok = sig_result.ok
+            hmac_reason = sig_result.reason
+        else:
+            hmac_ok = None
+            hmac_reason = f"{HMAC_ENV} unset — run UNSIGNED"
         _, answer = load_case(case_dir)
         report = score(result.findings, answer)
         return {
@@ -60,6 +73,8 @@ def run_one(
             "wall_s": round(wall, 2),
             "chain_ok": ok,
             "chain_reason": reason,
+            "hmac_ok": hmac_ok,
+            "hmac_reason": hmac_reason,
             "tp": report.tp,
             "fp": report.fp,
             "fn": report.fn,

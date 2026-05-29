@@ -33,7 +33,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 | Run | F1 | Source |
 |---|---|---|
-| **Hexbreaker Court on NIST Hacking Case** (DeepSeek + Ubuntu, our independently developed extraction) | **95.08%** (29/31 confirmed, 0 missed, 1 candidate FP) | `sweeps/competitors/score_court_on_nist_v5.json` |
+| ~~Hexbreaker Court on NIST Hacking Case~~ **WITHDRAWN** — the batched `court_on_nist.py` run injected literal ground-truth answers into the prompt, so this measured string-copying, not forensics. Injection removed; number not reproducible. | ~~95.08%~~ withdrawn | — |
 | dhyabi2 IABF on NIST (Gemma 4 31B + SIFT, **their original stack**, **their self-reported number**) | 100% | dhyabi2/findevil ACCURACY.md |
 | dhyabi2 IABF on NIST (DeepSeek + Ubuntu, **our independent re-measurement**) | **0.0%** | `sweeps/competitors/score_deepseek.json` |
 | marez8505 on NIST under DeepSeek constraint | **not runnable** | competitor briefing — hardcoded to Anthropic `claude --print` |
@@ -41,7 +41,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 | Hexbreaker Court on Forge timestomp (full architecture, N=10, **max attack**: planted MFT + runtime prompt injection) | **F1 = 0.5 ± 0.53** | same sweep |
 | Provocateur bait-taking across both modes, N=20 total | **`fp_planted = 0/20`** | same sweep |
 
-**Head-to-head under hackathon constraints** (DeepSeek-only LLM, no SIFT VM): **Court 95.08% vs dhyabi2 0.0%** on the canonical NIST dataset, **40× fewer tokens, 33× faster, 80× cheaper per run.**
+**Head-to-head on NIST:** our independent re-measurement of dhyabi2 under hackathon constraints (DeepSeek-only, no SIFT VM) scored **0.0%**, vs their self-reported 100% on Gemma+SIFT. (We previously claimed a 95.08% Hexbreaker number here; it is withdrawn — see the table note above.)
 
 **Adversarial robustness:** across 20 runs with maximum attack pressure (planted MFT rows + runtime prompt injection on every round, all six safeguard layers firing), the agent **never once** confirmed a planted artifact. The architecture trades recall-under-attack for precision-under-attack — better to miss than to lie.
 
@@ -68,10 +68,10 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 ## Accomplishments we're proud of
 
-- **Independent measurement of every named competitor under hackathon constraints.** marez8505 documented as unrunnable (Anthropic-locked); Valhuntir documented as human-in-loop (different category, MIT HMAC pattern borrowed with attribution); dhyabi2 measured at 0% with DeepSeek on Ubuntu; Court measured at 95.08% on the same setup.
+- **Independent measurement of every named competitor under hackathon constraints.** marez8505 documented as unrunnable (Anthropic-locked); Valhuntir documented as human-in-loop (different category, MIT HMAC pattern borrowed with attribution); dhyabi2 measured at 0% with DeepSeek on Ubuntu. (A previously claimed 95.08% Hexbreaker NIST number is withdrawn — it relied on prompt-injected answers.)
 - **All six hallucination safeguards are in code, not prompt.** Step-ID referential integrity, forced tool-call FSM, strict JSON schema, hash chain, HMAC signing, Provocateur runtime — every layer demonstrably rejects bad input via a paired unit test.
 - **Adversarial audit caught real bugs.** Code review + security review found 15 cleanups, 2 path-traversal CVEs (both closed with regression tests), and the position-bias measurement artifact. The audits caught more than the unit tests — that's the safeguard architecture working at the development layer too.
-- **Self-correction is observable in the data, not just the prompt.** The iterative NIST runs (45.9% → 73.3% → 84.75% → 91.80% → 95.08%) and the Provocateur prompt-to-Judge migration (fp_planted 1/10 → 0/20) are committed sweep artifacts; anyone can replay them.
+- **Self-correction is observable in the data, not just the prompt.** The Provocateur prompt-to-Judge migration (fp_planted 1/10 → 0/20) is a committed sweep artifact; anyone can replay it. (The earlier "iterative NIST 45.9% → 95.08%" story is withdrawn — that trajectory was driven by adding prompt-injected answer hints, not forensic improvement.)
 
 ## What we learned
 

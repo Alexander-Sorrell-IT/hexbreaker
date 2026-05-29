@@ -22,6 +22,8 @@ narrows the next call, and the rerun produces a verdict that cites real steps.
 
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,6 +31,7 @@ from typing import Any
 import orjson
 
 from .. import llm
+from ..court.hmac_chain import HMAC_ENV, sign_transcript
 from ..court.orchestrator import CourtSession
 from ..court.provocateur import emit_provocation
 from ..court.schema import CLAIM_JSON_SCHEMA_HINT, VERDICT_JSON_SCHEMA_HINT
@@ -374,6 +377,31 @@ def run_court_on_case(
     return _write_findings(manifest, findings, transcript_path, findings_path)
 
 
+def _sign_if_keyed(transcript_path: Path) -> None:
+    """Sign the finalized transcript with HMAC if the password is in the env.
+
+    A run is only tamper-EVIDENT once it carries an HMAC the attacker cannot
+    reproduce without the password — the hash chain alone is forgeable by
+    recompute. If HEXBREAKER_HMAC_PASSWORD is unset we do NOT crash (hermetic
+    test/demo runs have no key); we warn loudly that the run is UNSIGNED.
+    """
+    if not os.environ.get(HMAC_ENV):
+        print(
+            f"[hexbreaker] WARNING: {HMAC_ENV} not set — transcript {transcript_path} "
+            f"is UNSIGNED. The hash chain alone is recompute-forgeable; set "
+            f"{HMAC_ENV} to produce a tamper-evident .sig.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return
+    sig = sign_transcript(transcript_path)
+    print(
+        f"[hexbreaker] signed {transcript_path} ({sig.record_count} records)",
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def _write_findings(
     manifest: CaseManifest,
     findings: list[dict[str, Any]],
@@ -386,6 +414,7 @@ def _write_findings(
         "findings": findings,
     }
     findings_path.write_bytes(orjson.dumps(payload, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS))
+    _sign_if_keyed(transcript_path)
     return CourtRunResult(
         case_id=manifest.case_id,
         findings=findings,

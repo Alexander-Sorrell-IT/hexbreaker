@@ -75,14 +75,11 @@ SHOTS: list[Shot] = [
             "has never seen before."
         ),
         body=dedent("""\
-              Agent                                F1    Tokens   Wall
+              Forge synthetic-case sweep (Court, full architecture):
 
-              Hexbreaker Court (DeepSeek+Ubuntu)   95.08%  ~14K     6s
-              dhyabi2/findevil (DeepSeek+Ubuntu)    0.0%   353K     3m
-              dhyabi2/findevil (Gemma+SIFT, pub.)  100%    37K     n/a
-              marez8505/find-evil                  n/a    — locked to Anthropic
-
-              fp_planted = 0/20 across the N=20 Forge sweep.
+                F1 = 1.0 normal  /  0.5 under maximum attack
+                fp_planted = 0/20 across the N=20 Forge sweep
+                  (never confirmed a planted artifact)
             """),
         duration_hint_s=30,
     ),
@@ -170,32 +167,26 @@ SHOTS: list[Shot] = [
     ),
     Shot(
         id=5,
-        title="Head-to-head on NIST under hackathon constraints",
+        title="Competitor portability under hackathon constraints",
         narration=(
             "On the canonical NIST Hacking Case under the hackathon's actual "
             "LLM constraint — DeepSeek instead of Gemma, Ubuntu instead of SIFT "
-            "— the strongest competitor scores zero percent. Hexbreaker scores "
-            "ninety-five point zero eight percent. Same case, same ground truth, "
-            "same scorer. Forty times fewer tokens. Thirty times faster. "
-            "Eighty times cheaper. dhyabi2's published one hundred percent is "
-            "real on Gemma plus SIFT — but it does not survive the move to the "
-            "hackathon's constraints. Hexbreaker does."
+            "— the strongest competitor's published one hundred percent does not "
+            "survive: our independent re-measurement scores zero percent. The "
+            "published number is real on Gemma plus SIFT, but it is not portable. "
+            "We do not claim a Hexbreaker NIST number — an earlier batched script "
+            "reported one, but it had injected the answers into the prompt, so we "
+            "withdrew it."
         ),
         body=dedent("""\
-                              dhyabi2 IABF    Hexbreaker Court
-                              (DeepSeek+Ub)   (DeepSeek+Ubuntu)
+                              dhyabi2 IABF (Gemma+SIFT, published)   100%
+                              dhyabi2 IABF (DeepSeek+Ubuntu, ours)   0.0%
 
-              F1 (confirmed)  0.0%            95.08%   ← +95.08pp
-              Recall (any)    19.4%           100%
-              Precision       0.0%            96.67%
-              LLM calls       90              1        ← 90× fewer
-              Tokens          353K            ~14K     ← 25× fewer
-              Wall-clock      ~3 min          ~6 s     ← 30× faster
-
-              Verified with dhyabi2's own scripts/score.py
+              The 100% does not survive the constraint change.
+              Re-measured with dhyabi2's own scripts/score.py
               (methodological parity, MIT attribution preserved).
             """),
-        duration_hint_s=70,
+        duration_hint_s=60,
     ),
     Shot(
         id=6,
@@ -213,13 +204,12 @@ SHOTS: list[Shot] = [
               chain + HMAC OK: /tmp/demo/transcript.jsonl
 
               $ git log --oneline | head -8
+              Close evidence-integrity holes: sidecar hash check + HMAC wire-in
               Final architecture sweep — F1=1.0 normal, 0.5 max attack
               Provocateur runtime + Judge JR-02 + Witness (5-role wire)
               Tier B audit fixes: TimeoutExpired, 429 retry, set sort
               HMAC transcript signing (Valhuntir MIT port)
               2 path-traversal CVEs closed + Judge (JR-01)
-              Court on NIST: 45.9% → 95.08% F1 (5 iterations)
-              Court on NIST: 45.9% F1 vs dhyabi2 0%
               Land Tue-Fri-Sun Week-1 deliverables
 
               github.com/Alexander-Sorrell-IT/hexbreaker

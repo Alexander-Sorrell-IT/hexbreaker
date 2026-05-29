@@ -137,7 +137,10 @@ python /tmp/competitors/findevil/scripts/score.py \
     --label 'Hexbreaker-Court-on-NIST'
 ```
 
-Result on 2026-05-27: **F1 = 95.08%** (29/31 confirmed, 0 missed). See `docs/accuracy.md §3.2.1`.
+The earlier "F1 = 95.08%" from this batched path is **withdrawn** — that pipeline
+injected literal ground-truth answers into the prompt (now removed), so the
+number measured string-copying, not forensics. This batched script is not the
+adversarial Court and is not labeled "verifiable". See `docs/accuracy.md §3.2.1`.
 
 ---
 
@@ -149,8 +152,8 @@ Result on 2026-05-27: **F1 = 95.08%** (29/31 confirmed, 0 missed). See `docs/acc
 | `sweeps/2026-05-27_N10_shuffled.json` | Same N=10 post-shuffle (honest baseline) |
 | `sweeps/2026-05-28_N10_judge.json` | After Judge JR-01 wired |
 | `sweeps/2026-05-28_N10_final_arch.json` | Full architecture (Judge + Provocateur + HMAC + Tier B), canonical submission run |
-| `sweeps/competitors/hacking_case_court_v5.json` | Court on NIST (F1=95.08%) |
-| `sweeps/competitors/score_court_on_nist_v5.json` | dhyabi2's scorer applied to Court's NIST output |
+| `sweeps/competitors/hacking_case_court_v5.json` | Batched NIST Q&A output — **withdrawn** (was produced with prompt-injected answers; not Court, not verifiable) |
+| `sweeps/competitors/score_court_on_nist_v5.json` | dhyabi2's scorer applied to the withdrawn batched NIST output |
 | `sweeps/competitors/hacking_case_deepseek.json` | dhyabi2 on NIST with DeepSeek (0% F1 — independent re-measurement) |
 | `sweeps/competitors/score_deepseek.json` | dhyabi2's scorer applied to dhyabi2's own DeepSeek run |
 | `sweeps/competitors/run_deepseek.log` | 60KB transcript of the dhyabi2 run that produced the above |

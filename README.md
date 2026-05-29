@@ -3,16 +3,17 @@
 > Adversarial DFIR triage + generative benchmark for AI forensic agents.
 > SANS **Find Evil!** hackathon, 2026.
 
-**Headline measurement (NIST CFReDS Hacking Case, DeepSeek-only, Ubuntu host):**
-
-| Agent | F1 | Tokens | Wall-clock | Runs under hackathon constraints? |
-|---|---|---|---|---|
-| **Hexbreaker Court** | **95.08%** | ~14K | ~6 s | **yes** |
-| dhyabi2/findevil IABF | 0.0% | 353K | ~3 min | yes (poorly) |
-| dhyabi2/findevil IABF (Gemma + SIFT, their original stack) | 100% (their published) | 37K | n/a | no — needs Gemma + SIFT |
-| marez8505/find-evil | n/a | — | — | no — hardcoded to Anthropic |
+**Headline measurement (Hexbreaker Forge synthetic cases):**
 
 `fp_planted = 0/20` across N=20 Forge sweep with maximum adversarial pressure (planted MFT data + runtime prompt injection on every round, all 6 safeguard layers firing). The agent never confirmed a planted artifact across the entire sweep.
+
+> **NIST batched-Q&A number withdrawn.** An earlier `scripts/court_on_nist.py`
+> run reported 95.08% F1 on the NIST CFReDS Hacking Case, but that batched
+> pipeline injected literal ground-truth answers into the prompt, so the number
+> measured string-copying, not forensics. The injection has been removed; the
+> batched path is NOT the adversarial Court (no Defender, no FSM, no hash chain)
+> and is not labeled "Court" or "verifiable". A real Court-on-NIST measurement
+> is future work.
 
 Full numbers + per-question breakdown: [docs/accuracy.md](docs/accuracy.md).
 
@@ -149,7 +150,6 @@ Every safeguard has a paired test that proves it **rejects** bad input as well a
 
 | Number | Command |
 |---|---|
-| Court on NIST F1=95.08% | `python scripts/court_on_nist.py` (after the extraction in `docs/dataset.md §2.2`) |
 | dhyabi2 on NIST F1=0% under DeepSeek+Ubuntu | `bash /tmp/competitors/findevil/run_nist_deepseek.sh` after `git clone https://github.com/dhyabi2/findevil.git` |
 | Forge N=10 sweep F1=1.0 / 0.5, fp_planted=0/20 | `python scripts/sweep.py --seeds 10 --modes normal,provocateur --out sweeps/X.json` |
 | Friday gate (generate / score / Court transcript) | `hexbreaker generate ... && hexbreaker run ... && hexbreaker score ...` |

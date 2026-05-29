@@ -21,7 +21,14 @@ from hexbreaker.court.hmac_chain import (
     sign_transcript,
     verify_signature,
 )
-from hexbreaker.transcript import Actor, Kind, Transcript
+from hexbreaker.transcript import (
+    GENESIS_HASH,
+    Actor,
+    Kind,
+    Transcript,
+    _compute_this_hash,
+    verify,
+)
 
 PW = "test-passphrase-for-unit-tests"
 
@@ -146,3 +153,66 @@ def test_sign_raises_when_password_unset(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.delenv(HMAC_ENV, raising=False)
     with pytest.raises(RuntimeError, match=HMAC_ENV):
         sign_transcript(path)
+
+
+def test_run_path_signs_when_keyed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """HOLE C wire-in: the run path must produce a .sig when the password is set."""
+    from hexbreaker.runner.court_runner import _sign_if_keyed
+
+    path = tmp_path / "transcript.jsonl"
+    _build(path)
+    monkeypatch.setenv(HMAC_ENV, PW)
+    _sign_if_keyed(path)
+    assert path.with_suffix(path.suffix + ".sig").exists()
+    assert verify_signature(path, password=PW).ok
+
+
+def test_run_path_warns_and_skips_when_unkeyed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    """When the password is unset the run must NOT crash; it warns UNSIGNED and
+    writes no .sig."""
+    from hexbreaker.runner.court_runner import _sign_if_keyed
+
+    path = tmp_path / "transcript.jsonl"
+    _build(path)
+    monkeypatch.delenv(HMAC_ENV, raising=False)
+    _sign_if_keyed(path)  # must not raise
+    assert not path.with_suffix(path.suffix + ".sig").exists()
+    assert "UNSIGNED" in capsys.readouterr().err
+
+
+def test_hmac_detects_full_chain_recompute_forgery(tmp_path: Path) -> None:
+    """HOLE B regression: the unkeyed SHA-256 chain is forgeable by recompute —
+    an attacker who edits a record AND recomputes this_hash/prev_hash for that
+    record and every record after it produces a chain that passes the bare
+    verify(). The HMAC (HOLE C wired in) is what catches this: the attacker
+    cannot reproduce a valid signature without the password.
+
+    This test PROVES the chain alone is insufficient (it passes after the
+    forgery) and the signature is what closes the hole (it fails)."""
+    path = tmp_path / "run.jsonl"
+    _build(path, n=3)
+    sign_transcript(path, password=PW)
+
+    # Attacker forges: edit record 1's content, then recompute the WHOLE chain
+    # forward so prev_hash/this_hash all link cleanly again.
+    lines = [orjson.loads(l) for l in path.read_bytes().splitlines() if l.strip()]
+    lines[0]["content"] = {"i": 0, "forged": "attacker rewrote this"}
+    prev = GENESIS_HASH
+    for rec in lines:
+        rec["prev_hash"] = prev
+        rec.pop("this_hash", None)
+        rec["this_hash"] = _compute_this_hash(rec)
+        prev = rec["this_hash"]
+    path.write_bytes(b"\n".join(orjson.dumps(r) for r in lines) + b"\n")
+
+    # The bare chain now PASSES — this is exactly HOLE B.
+    chain_ok, chain_reason = verify(path)
+    assert chain_ok, f"recompute forgery should beat the bare chain: {chain_reason}"
+
+    # But the HMAC signature FAILS: the chain head changed, and the attacker
+    # cannot recompute the HMAC without the password.
+    result = verify_signature(path, password=PW)
+    assert not result.ok
+    assert not result.hmac_ok
+    assert result.chain_ok  # the forged chain is internally consistent
+    assert result.reason is not None

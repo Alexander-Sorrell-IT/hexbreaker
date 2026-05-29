@@ -108,3 +108,50 @@ def test_bump_turn_increments(tmp_path: Path) -> None:
 def test_genesis_prev_hash_format() -> None:
     assert GENESIS_HASH.startswith("sha256:")
     assert len(GENESIS_HASH) == len("sha256:") + 64
+
+
+def test_verify_detects_sidecar_byte_tampering(tmp_path: Path) -> None:
+    """HOLE A regression: real tool output lives in UNCHAINED sidecar files;
+    the chain only covers the hash STRING in the record. Editing ONLY a sidecar
+    file (the evidence bytes) must make verify() FAIL — otherwise an attacker
+    rewrites 'clean' -> 'EVIL' in the sidecar and the audit still passes."""
+    from hexbreaker.tools import run_tool
+
+    path = tmp_path / "run.jsonl"
+    t = Transcript.open(path)
+
+    def fake_runner(argv, cwd, timeout):
+        return 0, b"clean: no malware found\n", b"", 0.01
+
+    result = run_tool(t, "fls", ["-r"], runner=fake_runner)
+
+    # Pre-condition: the freshly written transcript + sidecar verify clean.
+    ok, reason = verify(path)
+    assert ok, reason
+
+    # Attack: edit ONLY the sidecar bytes. The JSONL chain is untouched.
+    result.stdout_path.write_bytes(b"EVIL: malware confirmed\n")
+
+    ok, reason = verify(path)
+    assert not ok
+    assert "sidecar hash mismatch" in reason
+    assert result.step_id in reason
+
+
+def test_verify_detects_missing_sidecar(tmp_path: Path) -> None:
+    """A referenced sidecar that has been deleted must fail verify(), not be
+    silently skipped."""
+    from hexbreaker.tools import run_tool
+
+    path = tmp_path / "run.jsonl"
+    t = Transcript.open(path)
+
+    def fake_runner(argv, cwd, timeout):
+        return 0, b"some output\n", b"err\n", 0.01
+
+    result = run_tool(t, "fls", [], runner=fake_runner)
+    result.stdout_path.unlink()
+
+    ok, reason = verify(path)
+    assert not ok
+    assert "sidecar missing" in reason

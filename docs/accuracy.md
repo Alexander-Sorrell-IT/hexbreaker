@@ -11,7 +11,7 @@
 | **Provocateur bait-taking (`fp_planted`)** | **N=80 total** (both templates × both modes × 20 seeds) | **0/80** ← never confirmed a planted artifact across the entire sweep | `sweeps/2026-05-28_N20_full.json` |
 | dhyabi2/findevil IABF (Gemma 4 31B via OpenRouter, on SIFT) | NIST CFReDS Hacking Case | 100% F1, self-reported | dhyabi2/findevil ACCURACY.md |
 | dhyabi2/findevil IABF (DeepSeek V4-flash, on Ubuntu host) | NIST CFReDS Hacking Case | **0.0% F1** (0/31 confirmed; 6/31 inferred) | `sweeps/competitors/score_deepseek.json` (this report, §3) |
-| **Hexbreaker Court v5 (DeepSeek V4-flash, on Ubuntu host)** | **NIST CFReDS Hacking Case** | **95.08% F1** (29/31 confirmed; 2/31 inferred; 0 missed) | `sweeps/competitors/score_court_on_nist_v5.json` (this report, §3) |
+| ~~Hexbreaker Court v5 (DeepSeek V4-flash, on Ubuntu host)~~ **WITHDRAWN** | NIST CFReDS Hacking Case | ~~95.08% F1~~ — withdrawn: the batched `court_on_nist.py` pipeline injected literal ground-truth answers into the prompt, so the number measured string-copying, not forensics. The injection is removed; this is not the adversarial Court and is no longer claimed. | — |
 | marez8505/find-evil (Anthropic-locked) | NIST CFReDS Hacking Case | **not runnable under DeepSeek-only constraint** | competitors briefing — hardcoded to `claude --print` |
 | AppliedIR/Valhuntir | NIST CFReDS Hacking Case | n/a — human-in-loop, no published ground truth | competitors briefing |
 
@@ -140,50 +140,27 @@ For comparison, dhyabi2's self-reported run with Gemma 4 31B:
   total_tokens = 37,000
 ```
 
-### 3.2.1 Hexbreaker Court on the same NIST setup
+### 3.2.1 Hexbreaker on the same NIST setup — WITHDRAWN
 
-Run date: 2026-05-27. Driver: `scripts/court_on_nist.py`. Final report: `sweeps/competitors/hacking_case_court_v5.json`. Score: `sweeps/competitors/score_court_on_nist_v5.json`.
+A prior version of this section reported an F1 of 95.08% from a batched-Q&A
+run via `scripts/court_on_nist.py`. **That number is withdrawn.** The batched
+pipeline injected literal ground-truth answers into the prompt — a
+"=== PRE-COMPUTED HINTS ===" block plus per-question hint lines that handed the
+model the image hash, the mIRC `user=`/`anick=` values, `mobile.msn.com`,
+`mrevilrulez@yahoo.com`, the "viruses: Yes" answer, and more. The result
+therefore measured the model copying answer strings, not forensic reasoning. The
+earlier "iteration trajectory" (45.9% → 95.08%) was largely the trajectory of
+adding more injected hints.
 
-The same E01 was extracted (registry hives + irunin.ini + Mr. Evil's NTUSER + mirc.ini + mIRC log directory + interception (Ethereal text dump) + IE history + RECYCLER INFO2) using the host's own `fls`/`icat` — **no SIFT VM, no Zimmerman tools, no Anthropic LLM**. Evidence bundle: ~50K chars. One batched DeepSeek V4-flash call answers all 31 questions.
+The injection has been removed from `scripts/court_on_nist.py`. The script now
+extracts only real evidence (registry hives, irunin.ini, fls/icat output, raw
+file dumps). With the hints gone the prior number is not reproducible, and we do
+not assert a replacement number here.
 
-```
-[Hexbreaker-Court-NIST-v5]
-  TP_confirmed = 29 / 31    (93.55% recall confirmed-only)
-  TP_inferred  =  2 / 31    (100.0% recall overall — zero missed)
-  FN           =  0 / 31
-  candidate_FP =  1
-  precision    = 96.67%
-  F1_confirmed = 95.08%
-
-LLM stats:
-  total_calls   = 1
-  total_tokens  ≈ 14K
-  wall-clock    ≈ 6 s
-```
-
-Head-to-head under the hackathon's actual constraints (DeepSeek-only, no SIFT VM):
-
-|  | dhyabi2 IABF (DeepSeek) | dhyabi2 IABF (Gemma+SIFT) | **Hexbreaker Court** |
-|---|---|---|---|
-| F1 | **0.0%** | 100% (self-reported) | **95.08%** |
-| Recall (overall) | 19.4% | 100% | **100%** |
-| Precision | 0.0% | 100% | **96.7%** |
-| LLM calls | 90 | 3 | **1** |
-| Tokens | 353K | 37K | **~14K** |
-| Wall-clock | ~3 min | (n/a — not run by us) | **~6 s** |
-| Runs under DeepSeek-only constraint? | Yes (but 0% F1) | No (Gemma required) | **Yes (95% F1)** |
-
-The development trajectory was iterative, each iteration adding targeted extraction without changing Court's architecture:
-
-| Iteration | F1 | What changed |
-|---|---|---|
-| v1 | 45.90% | Baseline: hives + irunin.ini only |
-| v2 | 73.33% | Pre-converted Unix epoch / FILETIME; OUI lookup for MAC vendor; fls -r for Interception/Showletter/INFO2/.dbx; deleted file count |
-| v3 | 84.75% | Added mirc.ini, mIRC log directory listing, interception file content, INFO2 strings, recycle-bin reasoning hint |
-| v4 | 91.80% | Mr. Evil's IE History (index.dat strings), explicit Q13 network-card list, CDT timezone normalization |
-| v5 | **95.08%** | Literal `key=value` formatting hints for mIRC settings, explicit `mobile.msn.com` / `Hotmail` for Q25 |
-
-The 2 remaining TP_inferred (counted toward recall but not toward F1) are scoring-format artifacts — the answer text is present in the final_narrative but not in the confirmed_findings list. A one-line fix to `render_report()` would lift F1 toward 100%, but the science is settled: under hackathon constraints, Court answers every question correctly.
+This batched path is **not** the adversarial Hexbreaker Court: it has no
+Defender, no FSM, no hash-chained transcript, and no HMAC signature. It must not
+be labeled "Court" or "verifiable". A genuine Court-on-NIST measurement is
+future work.
 
 ### 3.3 Interpretation
 

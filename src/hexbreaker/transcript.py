@@ -180,12 +180,45 @@ def read(path: str | Path) -> Iterator[StepRecord]:
             yield StepRecord.model_validate_json(line)
 
 
+def _verify_sidecar(
+    transcript_dir: Path, rel_path: str, expected_hash: str
+) -> str | None:
+    """Re-read a referenced sidecar file and check its bytes against the recorded
+    hash. Returns an error reason on failure, or None if it matches.
+
+    The bytes of real tool output live in unchained sidecar files; the chain only
+    covers the hash STRING in the record. Without this check, editing only a
+    sidecar (e.g. "clean" -> "EVIL") would leave verify() passing. The sidecar
+    path is resolved against the transcript directory and a path that escapes it
+    (poisoned `../../etc/passwd`) is treated as tampering, mirroring the defense
+    in court_runner._render_transcript.
+    """
+    candidate = (transcript_dir / rel_path).resolve()
+    if not candidate.is_relative_to(transcript_dir):
+        return f"sidecar path escapes transcript dir: {rel_path}"
+    try:
+        data = candidate.read_bytes()
+    except OSError:
+        return f"sidecar missing or unreadable: {rel_path}"
+    if _hash(data) != expected_hash:
+        return f"sidecar hash mismatch: {rel_path}"
+    return None
+
+
 def verify(path: str | Path) -> tuple[bool, str | None]:
-    """Walk the chain and verify every link.
+    """Walk the chain and verify every link, then verify referenced sidecars.
 
     Returns (ok, reason). On success reason is None; on failure reason names the
-    first broken step_id.
+    first broken step_id (or sidecar).
+
+    Two layers are checked:
+      1. The hash chain over each record's payload (catches edits to the JSONL).
+      2. For TOOL_CALL records, the bytes of each referenced sidecar file are
+         re-read and re-hashed against the stored stdout_hash/stderr_hash. The
+         real evidence lives in those unchained sidecars; without this, editing
+         only a sidecar file would leave the chain (and verify) intact.
     """
+    transcript_dir = Path(path).parent.resolve()
     prev = GENESIS_HASH
     expected_step = 1
     for record in read(path):
@@ -196,6 +229,17 @@ def verify(path: str | Path) -> tuple[bool, str | None]:
         recomputed = _compute_this_hash(record.model_dump(mode="json"))
         if recomputed != record.this_hash:
             return False, f"this_hash mismatch at {record.step_id}"
+        content = record.content
+        for path_key, hash_key in (
+            ("stdout_path", "stdout_hash"),
+            ("stderr_path", "stderr_hash"),
+        ):
+            if path_key in content and hash_key in content:
+                reason = _verify_sidecar(
+                    transcript_dir, content[path_key], content[hash_key]
+                )
+                if reason is not None:
+                    return False, f"{reason} (at {record.step_id})"
         prev = record.this_hash
         expected_step += 1
     return True, None

@@ -2,7 +2,7 @@
 
 Target: ≤5 minutes total (hackathon rules). Submission artifact #2.
 
-Required by the hackathon: **at least one unscripted self-correction moment** (Autonomous Execution Quality tiebreaker). We satisfy this twice over — the seed-4004 → corroboration-rule story AND the Court-on-NIST 45.9% → 95.08% iteration trajectory are both reproducible from committed sweep data.
+Required by the hackathon: **at least one unscripted self-correction moment** (Autonomous Execution Quality tiebreaker). We satisfy this with the seed-4004 → corroboration-rule story, reproducible from committed sweep data. (The earlier "Court-on-NIST 45.9% → 95.08%" trajectory is withdrawn — it was driven by prompt-injected answer hints, not forensic improvement; do not show it.)
 
 ---
 
@@ -10,11 +10,11 @@ Required by the hackathon: **at least one unscripted self-correction moment** (A
 
 | Time | Shot | What happens | What the viewer sees |
 |---|---|---|---|
-| 0:00–0:30 | Title + problem | Voice-over: "Find Evil! has 3,706 contestants. We submitted the league." Cut to README headline table. | README's headline F1 table (Court 95.08 / dhyabi2 0.0 / marez n/a) |
+| 0:00–0:30 | Title + problem | Voice-over: "Find Evil! has 3,706 contestants. We submitted the league." Cut to README headline. | README's Forge `fp_planted = 0/20` headline (the NIST batched number is withdrawn — do not show it) |
 | 0:30–1:15 | Live seed pick | Type `hexbreaker generate --seed 4729 --template registry_persistence --out /tmp/demo` in a terminal. Show the generated mock_outputs/recmd_run.csv with 5 Run-key rows. | Real terminal, no cuts. Pause on the CSV so the viewer sees the malicious entry mixed in with legit ones. |
 | 1:15–2:45 | Court runs live | `hexbreaker run --agent court --case /tmp/demo --out /tmp/demo/findings.json`. Wait the ~10 s of real wall-clock. Show the streaming output. Then `cat /tmp/demo/findings.json`. | Real DeepSeek call. Defender's reasoning visible. CONFIRMED verdict at the end. |
 | 2:45–3:30 | The safeguards demo | `hexbreaker generate --seed 4004 --template timestomp --provocateur --out /tmp/bait`. Run Court. Show JUDGE downgrade event in transcript. | Transcript shows S-002 PROVOCATEUR (payload) and S-006 JUDGE downgrade with rule_id JR-02 — the bait-taking failure mode the safeguard exists to catch, caught in code not prompt. |
-| 3:30–4:30 | Head-to-head numbers | Voice-over: "On the canonical NIST Hacking Case under the hackathon's actual LLM constraint, dhyabi2 scores 0%. We score 95%." Show the table from accuracy.md. Then a one-liner that re-runs both: `python scripts/court_on_nist.py` (6 s) vs `bash /tmp/competitors/findevil/run_nist_deepseek.sh` (3 min). | Side-by-side terminals or split screen. The 6-second vs 3-minute contrast tells the story without needing more voice-over. |
+| 3:30–4:30 | Adversarial robustness | Voice-over: "Under maximum attack — planted artifacts plus runtime prompt injection on every round — the agent never confirmed a planted artifact." Show `fp_planted = 0/20` in the committed sweep. (NIST head-to-head dropped: the prior Hexbreaker 95% was prompt-injected and is withdrawn.) | Terminal showing the sweep summary / accuracy.md Forge table. |
 | 4:30–5:00 | Audit story | `hexbreaker verify --transcript /tmp/demo/transcript.jsonl --hmac` returns "chain + HMAC OK". Then `git log --oneline` showing 10 commits today. | Clean cryptographic verification. Cut to the commit graph showing measured self-correction across the day. |
 
 ---
@@ -23,9 +23,9 @@ Required by the hackathon: **at least one unscripted self-correction moment** (A
 
 1. **Seed-4004 → corroboration-rule migration**: caught the Defender confirming a planted artifact (`fp_planted = 1/10`), moved the corroboration rule from prompt to deterministic Python (JR-01 in Judge), re-measured (`fp_planted = 0/20`). Sweep files `sweeps/2026-05-27_N10_baseline.json` and `sweeps/2026-05-28_N10_final_arch.json` are both committed for replay.
 2. **Position bias caught by code review**: the Provocateur F1=1.0 was partially a "pick row 1" artifact because the timestomp template always emitted the evil row at index 0. Added `rng.shuffle()`, re-measured at F1=0.7. Honest in `accuracy.md §2.2.1`.
-3. **NIST F1 iteration 45.9% → 95.08%**: 5 versions of `scripts/court_on_nist.py`, each adding one extraction layer (registry hives, IE history, mIRC channel logs, INFO2, format hints). Each version's sweep is committed at `sweeps/competitors/score_court_on_nist_v[1-5].json`.
+3. ~~NIST F1 iteration 45.9% → 95.08%~~ **WITHDRAWN**: that trajectory was driven by adding prompt-injected ground-truth answer hints to `scripts/court_on_nist.py`, not by forensic improvement. The injection has been removed; do not present this as self-correction.
 
-Any one of these is sufficient for the tiebreaker; **all three are reproducible from committed artifacts.**
+The remaining moments are reproducible from committed artifacts and are sufficient for the tiebreaker.
 
 ---
 

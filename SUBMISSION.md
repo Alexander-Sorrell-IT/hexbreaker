@@ -14,7 +14,7 @@ Each row points to where the artifact lives in this repo + verifies it's complet
 | 3 | **Architecture diagram (security boundaries)** | [docs/architecture.md](docs/architecture.md). ASCII data-flow diagram + per-boundary "architectural vs prompt-based" table. SVG conversion is optional polish. | ✅ ready (Markdown); SVG = optional |
 | 4 | **Written description (Devpost story)** | [docs/devpost.md](docs/devpost.md). Full Inspiration / What it does / Measured results / How we built it / Challenges / Accomplishments / What we learned / What's next narrative. | ✅ ready (paste into Devpost form) |
 | 5 | **Dataset documentation** | [docs/dataset.md](docs/dataset.md). Documents Forge synthetic schema, the 2 case templates, NIST Hacking Case acquisition + hashes + extraction commands, attribution. | ✅ ready |
-| 6 | **Accuracy report with evidence-integrity section** | [docs/accuracy.md](docs/accuracy.md). Per-method F1 table, head-to-head vs dhyabi2 / marez / Valhuntir, the 6 safeguards each tied to a specific code path + test, the iteration trajectory (45.9% → 95.08% on NIST). | ✅ ready |
+| 6 | **Accuracy report with evidence-integrity section** | [docs/accuracy.md](docs/accuracy.md). Per-method F1 table, head-to-head vs dhyabi2 / marez / Valhuntir, the 6 safeguards each tied to a specific code path + test. (The earlier NIST 95.08% batched number is withdrawn — it used prompt-injected answers; see §3.2.1.) | ✅ ready |
 | 7 | **Try-it-out instructions tested on SIFT** | [README.md §"Try it out"](README.md) + [docs/sift_verification.md](docs/sift_verification.md) — full walkthrough run **live** in the Docker image (generate → Court → score → verify, 17 s, F1=1.0, chain OK). Docker is `python:3.12-slim`, so it is SIFT-version-proof and runs on both SIFT bases (22.04 / 24.04). | ✅ Docker path verified end-to-end (the SIFT-safe route); native path needs Python ≥3.11 (stock SIFT 22.04 ships 3.10 → use Docker). **Residual: literal SANS OVA boot not performed** (Docker removes the failure class it would test) |
 | 8 | **Structured agent execution logs** | every Court run produces hash-chained JSONL at `<case_dir>/transcript.jsonl` + per-tool sidecar files at `<case_dir>/transcript.outputs/`. HMAC signature optional via `hexbreaker sign`. Validator: `hexbreaker verify --transcript X.jsonl --hmac`. Sample committed at `sweeps/competitors/run_deepseek.log`. | ✅ ready |
 
@@ -28,10 +28,10 @@ Per the hackathon brief, six equally-weighted criteria with **Autonomous Executi
 |---|---|
 | **Innovation** | Generative Forge benchmark (no other entry has one); 5-role MAD with deterministic Python Judge (no other entry has one). |
 | **Technical Quality** | 94 unit tests + 4 live integration tests, all green; 13+ commits each with substantive content; clean separation of concerns (transcript / FSM / Judge / Provocateur). |
-| **Accuracy on Find-Evil cases** | NIST: 95.08% under hackathon constraints (vs dhyabi2's 0% same constraints); Forge: 1.0 normal / 0.5 max-attack with `fp_planted = 0/20`. |
+| **Accuracy on Find-Evil cases** | Forge: 1.0 normal / 0.5 max-attack with `fp_planted = 0/20`. (The earlier NIST 95.08% batched number is withdrawn — it used prompt-injected answers, was not the adversarial Court, and is not reproducible.) |
 | **Audit Trail Quality** | Hash-chained JSONL + step_id namespace + cited-hash cross-check + HMAC signing (5 of the 6 safeguards directly underpin this criterion). |
 | **Constraint Implementation** | DeepSeek-only (no Anthropic), no SIFT-only tools required, runs in `python:3.12-slim` Docker (Layer-1 reproducibility); the only entry that runs at all under the LLM constraint AND on a plain Ubuntu host. |
-| **Autonomous Execution Quality (TIEBREAKER)** | Demonstrable self-correction at three levels: (a) Defender → Judge JR-01 corroboration migration (seed-4004 → fp_planted=0/20); (b) position-bias caught by code review, fixed, re-measured; (c) NIST extraction 45.9% → 95.08% over 5 iterations. All replayable from committed sweep artifacts. |
+| **Autonomous Execution Quality (TIEBREAKER)** | Demonstrable self-correction: (a) Defender → Judge JR-01 corroboration migration (seed-4004 → fp_planted=0/20); (b) position-bias caught by code review, fixed, re-measured. All replayable from committed sweep artifacts. (The earlier NIST 45.9%→95.08% "trajectory" is withdrawn — it was the trajectory of adding prompt-injected answer hints, not forensic improvement.) |
 
 ## Pre-flight checklist (Thu 6/12 evening)
 
@@ -41,7 +41,7 @@ Per the hackathon brief, six equally-weighted criteria with **Autonomous Executi
 - [ ] `docker build -t hexbreaker -f docker/Dockerfile .` succeeds
 - [ ] Docker smoke: `generate → run → score` works inside the container (one-shot reproducibility for judges)
 - [ ] `hexbreaker generate --seed 4729 --out /tmp/x` deterministic across re-runs (sha256 of manifest.json matches)
-- [ ] `python scripts/court_on_nist.py` reproduces the F1=95.08% NIST headline (needs the NIST extracts under /tmp/nist-extracts)
+- [ ] ~~`python scripts/court_on_nist.py` reproduces the F1=95.08% NIST headline~~ WITHDRAWN — that number came from prompt-injected answers (now removed); the batched path no longer produces a claimed F1
 - [ ] `python scripts/sweep.py --seeds 10 --modes normal,provocateur` reproduces the Forge headline (F1=1.0 normal, fp_planted=0)
 - [ ] Demo video recorded + uploaded (Tue 6/10 target per plan)
 - [ ] **Repo visibility flipped to PUBLIC** (currently private)
