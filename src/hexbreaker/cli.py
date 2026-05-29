@@ -8,7 +8,7 @@ import click
 import orjson
 
 from .court.hmac_chain import sign_transcript, verify_signature
-from .forge import template_registry_persistence, template_timestomp
+from .forge import template_multi_artifact, template_registry_persistence, template_timestomp
 from .forge.case import AnswerKey
 from .runner.court_runner import run_court_on_case
 from .scorer.exact_match import score
@@ -17,6 +17,7 @@ from .transcript import verify
 TEMPLATES = {
     "timestomp": template_timestomp.generate,
     "registry_persistence": template_registry_persistence.generate,
+    "multi_artifact": template_multi_artifact.generate,
 }
 
 
@@ -67,7 +68,7 @@ def run(agent: str, case: str, out: str) -> None:
         click.echo(f"    - {f['artifact_kind']} target={f['target']!r} verdict={f['verdict']}")
 
 
-@main.command()
+@click.command()
 @click.option("--findings", "findings_path", type=click.Path(exists=True), required=True, help="Agent findings JSON.")
 @click.option("--answer-key", "answer_key_path", type=click.Path(exists=True), required=True, help="Ground truth JSON.")
 def score_cmd(findings_path: str, answer_key_path: str) -> None:
@@ -88,12 +89,13 @@ main.add_command(score_cmd, name="score")
 @click.option("--agents", default="court,dhyabi2,marez8505", help="Comma-separated agent ids.")
 def leaderboard(seeds: int, agents: str) -> None:
     """Run leaderboard across N seeds × M agents and emit a scorecard."""
-    raise NotImplementedError(
-        f"leaderboard(seeds={seeds}, agents={agents!r}) — landing Thursday 6/5"
+    raise click.UsageError(
+        f"leaderboard(seeds={seeds}, agents={agents!r}) is not implemented yet "
+        f"(planned post-submission). Use `sweep.py` for multi-seed Court runs."
     )
 
 
-@main.command()
+@click.command()
 @click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL).")
 @click.option("--hmac/--no-hmac", "check_hmac", default=False, help="Also verify the HMAC signature (.sig sidecar). Requires HEXBREAKER_HMAC_PASSWORD.")
 def verify_cmd(transcript_path: str, check_hmac: bool) -> None:
@@ -120,7 +122,7 @@ def verify_cmd(transcript_path: str, check_hmac: bool) -> None:
 main.add_command(verify_cmd, name="verify")
 
 
-@main.command()
+@click.command()
 @click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL) to sign.")
 def sign_cmd(transcript_path: str) -> None:
     """Sign a Court transcript with HMAC-SHA256 (Valhuntir pattern).

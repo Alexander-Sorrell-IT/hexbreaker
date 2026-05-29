@@ -6,16 +6,16 @@
 
 | Agent | Dataset | F1 | Source |
 |---|---|---|---|
-| Hexbreaker Court (full architecture) | Forge **both templates** (timestomp + registry_persistence), **N=20 each**, normal | **F1 = 0.95 ± 0.22**, n=40 | `sweeps/2026-05-28_N20_full.json` |
-| Hexbreaker Court (full architecture, max attack) | Forge **both templates**, **N=20 each**, Provocateur | **F1 = 0.5 ± 0.51**, n=40 | `sweeps/2026-05-28_N20_full.json` |
-| **Provocateur bait-taking (`fp_planted`)** | **N=80 total** (both templates × both modes × 20 seeds) | **0/80** ← never confirmed a planted artifact across the entire sweep | `sweeps/2026-05-28_N20_full.json` |
+| Hexbreaker Court (full architecture) | Forge **both templates** (timestomp + registry_persistence), 20 seeds each, normal | **F1 ≈ 0.95–0.975**, n=40 (0.975±0.158 on 05-28; 0.95±0.221 on 05-29) | two HMAC-signed sweeps: `sweeps/2026-05-28_N40_signed_audit.json`, `sweeps/2026-05-29_N40_signed_audit.json` |
+| Hexbreaker Court (full architecture, max attack) | Forge **both templates**, 20 seeds each, Provocateur | **F1 ≈ 0.475–0.525**, n=40 (0.525±0.506; 0.475±0.506) — high variance, "miss not lie" | both signed sweeps (as above) |
+| **Provocateur bait-taking (`fp_planted`)** | 80 provocateur runs total (2 signed sweeps × 40) | **0 planted artifacts confirmed across all 80.** Honest denominator: in each sweep the agent confirmed a finding in ~19–21 of 40 provocateur runs (0 planted) and confirmed nothing in the rest — so bait-resistance is demonstrated on the runs with an actual opportunity, not robustly across all 40. | both signed sweeps |
 | dhyabi2/findevil IABF (Gemma 4 31B via OpenRouter, on SIFT) | NIST CFReDS Hacking Case | 100% F1, self-reported | dhyabi2/findevil ACCURACY.md |
 | dhyabi2/findevil IABF (DeepSeek V4-flash, on Ubuntu host) | NIST CFReDS Hacking Case | **0.0% F1** (0/31 confirmed; 6/31 inferred) | `sweeps/competitors/score_deepseek.json` (this report, §3) |
 | ~~Hexbreaker Court v5 (DeepSeek V4-flash, on Ubuntu host)~~ **WITHDRAWN** | NIST CFReDS Hacking Case | ~~95.08% F1~~ — withdrawn: the batched `court_on_nist.py` pipeline injected literal ground-truth answers into the prompt, so the number measured string-copying, not forensics. The injection is removed; this is not the adversarial Court and is no longer claimed. | — |
 | marez8505/find-evil (Anthropic-locked) | NIST CFReDS Hacking Case | **not runnable under DeepSeek-only constraint** | competitors briefing — hardcoded to `claude --print` |
 | AppliedIR/Valhuntir | NIST CFReDS Hacking Case | n/a — human-in-loop, no published ground truth | competitors briefing |
 
-**Headline claim:** zero hallucinated step_ids across N=20 Court runs; zero Provocateur bait taken after Defender-corroboration-rule fix; chain-validates on every run.
+**Headline claim:** zero hallucinated step_ids across the sweeps; zero Provocateur bait confirmed (0/80 across two signed sweeps); chain + HMAC validate on every run (80/80 in each signed sweep, 160/160 across both). The bare SHA-256 chain alone is forgeable by full recompute — tamper-evidence holds *with* the HMAC signature, not from the chain alone.
 
 ## 1. Methodology
 
@@ -50,6 +50,12 @@ Source: NIST CFReDS, https://cfreds-archive.nist.gov/Hacking_Case.html
 Each agent was measured on the cases it was designed for, with its own scorer. This avoids the apples-to-oranges trap of forcing one agent's evaluation methodology onto another.
 
 ## 2. Hexbreaker Court on Forge cases
+
+> **Canonical numbers are the Summary table above** (two HMAC-signed sweeps,
+> 40 runs/mode each, F1 ≈ 0.95–0.975 / 0.475–0.525, fp_planted 0/80).
+> The N=10 single-template numbers in §2.2–§2.3 below are the **earlier
+> trajectory** that produced the self-correction story; they are kept for
+> provenance and are each labeled with their source file.
 
 ### 2.1 Setup
 
@@ -88,13 +94,76 @@ both runs**: even with shuffled rows, the agent never confirmed a planted
 artifact. Failures on the 3 affected seeds were all FN (missed the real evil),
 not FP_PLANTED (confirmed wrong file).
 
-### 2.3 Self-correction sequence (the demo tiebreaker)
+### 2.3 Self-correction sequence (criterion 1: Autonomous Execution)
 
-The Provocateur sweep initially measured `fp_planted=1` (one bait taken on seed 4004 — Court CONFIRMED `\Windows\System32\explorer.exe` as timestomped without yara corroboration). The chain verified and the citation was real — Layer 1+4 held — but the **reasoning** was bait-taking.
+The failure mode the Provocateur targets is **single-signal bait-taking**: a
+Defender that CONFIRMS a timestomp on the MFT `$SI/$FN` divergence alone, without
+the independent yara corroboration. Early in the build, the corroboration rule
+lived only in the Defender's *prompt*, where the LLM could ignore it. We moved it
+into a **deterministic Python Judge** (JR-01, `court/judge.py`): a CONFIRMED
+verdict citing fewer than two distinct tool kinds is downgraded to CONTESTED at
+runtime, in code, regardless of what the LLM Defender emits.
 
-**In-session fix:** added a corroboration rule to the Defender prompt requiring two-of-two independent signals before CONFIRMED. Re-measured: 0/20 bait taken across N=20 runs.
+This self-correction is a **committed, replayable artifact** — not an anecdote:
 
-This is a single-session, measured, reproducible self-correction. The transcript and pre/post sweep JSON are both committed. _(Demo-video material: live seed pick, show the before-fix transcript, show the after-fix transcript, show the chain verify on both.)_
+```bash
+PYTHONPATH=src python scripts/demo_self_correction.py
+```
+
+It drives the real CourtSession + Judge (no LLM, no network): the Defender
+CONFIRMS citing only the single MFT signal; **JR-01 overrides it to CONTESTED**;
+zero findings are emitted; and the hash-chained transcript
+(`samples/self_correction/transcript.jsonl`) plus its HMAC signature both verify.
+The override is recorded in the chain as a JUDGE `judge_downgrade` step, so the
+correction itself is auditable. Across the signed Provocateur sweep (40 runs/mode)
+the agent confirmed **0 planted artifacts** — JR-01 is the architectural backstop
+behind that result.
+
+> Honesty note: an earlier draft of this section described a specific measured
+> incident (seed 4004, `explorer.exe`, `fp_planted` 1→0) as a committed sweep.
+> No such pre-fix artifact exists in the repo or git history — every committed
+> sweep reports `fp_planted=0`. That narrative is withdrawn and replaced by the
+> deterministic, re-derivable demonstration above.
+
+### 2.4 Multi-finding investigation loop (Breadth & Depth)
+
+`run_court_on_case` takes `max_rounds: int = 1`. Each round is a **fresh
+`CourtSession` on the same hash-chained transcript**, so the FSM (R1/R2), the
+deterministic Judge, the validator, the chain, and the HMAC are all re-enforced
+per round **without any change to their code**. The round-2+ Prosecutor prompt
+lists ONLY the agent's own prior accusations ("already accused — name a different
+artifact"); it never reads `answer_key.json`. The loop stops on exhaustion (a
+repeated accusation) or no valid claim. Findings are deduped on
+`(artifact_kind, target)`.
+
+- **Forge headline stays `max_rounds=1` — byte-identical to the prior single-finding
+  path.** Both base templates (`timestomp`, `registry_persistence`) have exactly ONE
+  expected finding, so multi-round has zero recall upside and only precision
+  downside there. A golden test pins the `max_rounds=1` bytes. The N40 confirmation
+  sweep on current code (`sweeps/2026-05-29_N40_signed_audit.json`) scored F1
+  **0.95 / 0.475** with **`fp_planted = 0/80`** and **80/80 chain+HMAC verified** —
+  within run-to-run LLM variance of the prior signed sweep (0.975 / 0.525), safeguard
+  metric held at 0. We report the pair as a range (≈0.95–0.975 normal / ≈0.475–0.525
+  max-attack), not the higher number alone.
+- **Real multi-artifact evidence is where it lifts (Breadth & Depth, our weakest
+  axis).** The NIST FSM adapter (`scripts/court_on_nist_fsm.py`) now runs
+  `max_rounds = N`, where N is the number of deleted-exe slots **visible in the
+  INFO2 recycle-bin evidence the Prosecutor reads** (a forensic count off the disk,
+  not a peek at the withheld answer key). Each round independently re-accuses a
+  different recycle-bin entry. *Measurement status:* code-ready and unit-tested; the
+  measured recall lift is pending re-staging the NIST disk extracts (the `.E01` is
+  not on the current host). The prior single-finding recall (~0.25) is the baseline.
+- **Measured accuracy-under-load (C2):** a new multi-expected Forge case
+  (`template_multi_artifact`, headline templates untouched) ships TWO distinct true
+  artifacts — a timestomped driver (MFTECmd + yara on the same path) and an HKLM
+  Run-key persistence (RECmd + EvtxECmd Sysmon EventID-13 naming the same key) —
+  each with **genuine per-target corroboration** so JR-01 is honestly satisfiable,
+  plus a planted bait with a primary signal but no corroborator. Run under
+  `max_rounds ≥ 2` it measures both multi-TP recall AND `fp_planted = 0` under
+  multi-finding load (separate signed sweep).
+- **Honest limitation (flagged, not fixed):** JR-01 corroboration counts ≥2 distinct
+  tool *kinds* cited, not per-target referential relevance (the queued JR-02-relevance
+  rule). Multi-round does not strengthen corroboration; we do not claim it does.
 
 ## 3. Independent verification of dhyabi2's 100% on NIST
 
@@ -225,10 +294,10 @@ Forge optionally plants timestomp-signature MFT rows with no yara corroboration.
 | Gap | Plan |
 |---|---|
 | 4 remaining Forge templates (registry persistence, browser, prefetch, run-key) | Build during Week 2 (6/2-6/8) |
-| HMAC chain signing (Layer 5 re-derivation) | Tue 6/3 per plan |
-| marez8505/find-evil and Valhuntir runs | Thu 6/5 per plan |
+| HMAC chain signing (Layer 5 re-derivation) | Wed 6/3 per plan |
+| marez8505/find-evil and Valhuntir runs | Fri 6/5 per plan |
 | Larger N per template (target N=50) | Week 2-3 |
-| Live demo recording w/ unscripted self-correction | Tue 6/10 per plan |
+| Live demo recording w/ unscripted self-correction | Wed 6/10 per plan |
 
 ## 7. Reproducibility
 

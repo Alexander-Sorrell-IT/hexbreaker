@@ -38,10 +38,10 @@ SIFT bases. Full documented walkthrough, run live against DeepSeek:
 - Image size 303 MB; produces the full audit bundle (`transcript.jsonl` +
   `transcript.outputs/` sidecars + `manifest.json`).
 
-**Honest scope:** this ran on Alex's host, not inside a booted SANS OVA. The image
-is environment-independent, so "runs on SIFT" follows from "SIFT has Docker" — an
-assumption, not a separate test. Booting the literal OVA is the one residual gap
-(see §3).
+**Honest scope:** this §1 result ran via Docker on Alex's host. The image is
+environment-independent, so "runs on SIFT" follows from "SIFT has Docker." We did
+not stop there — Court was **also run inside a booted SANS SIFT 24.04 VM** with the
+audit bundle pulled out (see §3 + `samples/sift_vm_run/`).
 
 ## 2. Native (no-Docker) path — version-gated on stock SIFT
 
@@ -70,12 +70,26 @@ SIFT-on-24.04 (Cast) ships Python 3.12 and the native path works there. The poin
 is that **only the Docker path works on *both* SIFT bases** — which is why the
 README leads with it for SIFT.
 
-## 3. Residual gap (honest)
+## 3. Booted SIFT VM run (residual gap closed)
 
-Not done: booting the actual SANS SIFT `.ova` and running the walkthrough inside it.
-That needs a SANS-portal download + hypervisor and was not performed. The Docker
-image removes the failure class the OVA boot would test for (wrong Python / missing
-build deps), so this is a completeness gap, not a correctness risk.
+The §1 result ran via Docker on the host. We subsequently ALSO ran Court **inside a
+booted SANS SIFT workstation VM** — Ubuntu **24.04.4** (the Cast SIFT image
+`sift.qcow2`), booted as a KVM/libvirt guest (serial-console login banner captured:
+`Ubuntu 24.04.4 LTS siftworkstation … siftworkstation login:`). The hexbreaker
+package was pushed into the guest over scp, a **provocateur-mode** Court run executed
+inside SIFT, and the audit bundle was pulled back out. Committed evidence:
+[`samples/sift_vm_run/`](../samples/sift_vm_run/) — the run **CONFIRMED**
+`\Windows\System32\drivers\mssecsvc2.exe` with genuine two-tool corroboration
+(MFTECmd S-001 + yara S-004); `findings.json` + `transcript.jsonl` are the verbatim
+pull, plus `sift_boot_serial.log`.
+
+Precise caveats (no overclaim): it was the SIFT **`.qcow2`** image booted as a KVM
+guest, not a literal distributed-`.ova`-file import (same SIFT build); and the
+transcript's `transcript.outputs/` sidecars stayed inside the VM (only the JSON
+bundle was scp'd out), so the chain's RECORD links verify while the sidecar-byte
+re-hash would need the in-VM outputs. Net: **"Court runs on a genuine SIFT
+workstation" is demonstrated, not assumed.** The only thing not done is importing
+the distributed `.ova` file specifically — which the Docker path makes unnecessary.
 
 ## Reproduce
 

@@ -23,7 +23,11 @@ import os
 
 from hexbreaker import llm
 from hexbreaker.court.hmac_chain import HMAC_ENV, verify_signature
-from hexbreaker.forge import template_registry_persistence, template_timestomp
+from hexbreaker.forge import (
+    template_multi_artifact,
+    template_registry_persistence,
+    template_timestomp,
+)
 from hexbreaker.forge.case import load_case
 from hexbreaker.runner.court_runner import run_court_on_case
 from hexbreaker.scorer.exact_match import FindingClass, score
@@ -32,6 +36,7 @@ from hexbreaker.transcript import verify
 TEMPLATES = {
     "timestomp": template_timestomp.generate,
     "registry_persistence": template_registry_persistence.generate,
+    "multi_artifact": template_multi_artifact.generate,
 }
 
 
@@ -41,6 +46,7 @@ def run_one(
     provocateur: bool,
     work_dir: Path,
     client: llm.DeepSeekClient,
+    max_rounds: int = 1,
 ) -> dict:
     mode = "provocateur" if provocateur else "normal"
     case_dir = work_dir / f"{template}-{seed}-{mode}"
@@ -50,7 +56,7 @@ def run_one(
     TEMPLATES[template](seed, case_dir, provocateur=provocateur)
     t0 = time.monotonic()
     try:
-        result = run_court_on_case(case_dir, client=client)
+        result = run_court_on_case(case_dir, client=client, max_rounds=max_rounds)
         wall = time.monotonic() - t0
         ok, reason = verify(result.transcript_path)
         # run_court_on_case signs the transcript when HEXBREAKER_HMAC_PASSWORD is
@@ -130,6 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--start-seed", type=int, default=4000)
     parser.add_argument("--out", required=True)
     parser.add_argument("--work-dir", default="/tmp/hexbreaker-sweep")
+    parser.add_argument("--max-rounds", type=int, default=1,
+                        help="Court bouts per run; 1 = single-finding headline path. "
+                             ">1 enables the multi-finding loop (e.g. for multi_artifact).")
     args = parser.parse_args(argv)
 
     llm.load_env(Path(__file__).resolve().parent.parent / ".env")
@@ -150,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             for seed in seeds:
                 i += 1
                 print(f"[{i}/{total}] {template} mode={mode} seed={seed}", flush=True)
-                r = run_one(seed, template, provocateur, work_dir, client)
+                r = run_one(seed, template, provocateur, work_dir, client, max_rounds=args.max_rounds)
                 results.append(r)
                 if r["ok"]:
                     print(

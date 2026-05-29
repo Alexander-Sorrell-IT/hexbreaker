@@ -1,0 +1,17 @@
+{
+  "case_id": "case-004729-timestomp",
+  "findings": [
+    {
+      "artifact_kind": "timestomp",
+      "challenge_text": "The primary signal is the MFT timestomp indicator for \\Windows\\System32\\drivers\\mssecsvc2.exe: Created0x10 (2017) and Created0x30 (2026) diverge significantly, suggesting backdated $SI creation. Corroboration exists from an independent tool step: yara scan (S-004) returned a hit 'APT_DRIVER_HEURISTIC' on the same file. Two independent signals on the same target confirm the accusation.",
+      "cited_steps": [
+        "S-001",
+        "S-004"
+      ],
+      "reasoning_excerpt": "We are the Defender. We have the transcript. The Prosecutor claims that mssecsvc2.exe shows a timestomp signature because Created0x10 (2017) and Created0x30 (2026) diverge. This is the primary signal from S-001 MFTECmd output. The Prosecutor cites only S-001.\n\nWe need to check for corroboration. The transcript shows S-004: yara scan on mssecsvc2.exe resulted in a hit \"APT_DRIVER_HEURISTIC\". This is an independent corroborating signal on the same target. So we have two independent tool steps: S-001 (MFT timestamps) and S-004 (yara hit). Therefore, the verdict should be CONFIRMED.\n\nBut we must b",
+      "target": "\\Windows\\System32\\drivers\\mssecsvc2.exe",
+      "verdict": "CONFIRMED"
+    }
+  ],
+  "template": "timestomp"
+}

@@ -26,11 +26,15 @@ ONTOLOGY NOTE (why this is a *partial* NIST result, reported honestly):
     ontology. Only the recycle-bin executables (NIST Q28) are cleanly
     artifact-shaped AND backed by two independent real tools (fls + INFO2), which
     is what JR-01 requires to reach a CONFIRMED verdict.
-  - So this measures: can the real Court, on real disk evidence, identify a
-    deleted malicious-tool executable with genuine two-tool corroboration and
-    survive the Judge? It does NOT and CANNOT honestly produce a 31-question F1
-    — recall is structurally capped at 1/4 on Q28 alone by the one-finding limit.
-    Forcing the model to enumerate the other three would be injection.
+  - So this measures: can the real Court, on real disk evidence, identify the
+    deleted malicious-tool executables with genuine two-tool corroboration and
+    survive the Judge? It does NOT attempt a 31-question F1 (most questions fall
+    outside the ArtifactKind ontology). The multi-finding loop (max_rounds) lets
+    ONE run adjudicate each recycle-bin exe slot PRESENT IN THE INFO2 EVIDENCE in
+    its own bout — that is reading the evidence the Prosecutor already sees, NOT
+    injecting answers (the withheld answer_key is never read by the agent). The
+    earlier 1/4 recall was the single-finding DESIGN cap, not an honesty boundary;
+    iterating claims over the visible recycle-bin entries lifts it honestly.
 
   - artifact_kind is set to "other": recycle-bin presence proves DELETION, not
     execution, so claiming "execution" would overclaim beyond the evidence. The
@@ -263,11 +267,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"        - {t}", flush=True)
 
     print("[2/3] running the REAL FSM Court (Prosecutor+Defender+Judge, signed) ...", flush=True)
+    # max_rounds = the number of deleted-exe slots in the INFO2 recycle-bin
+    # evidence the Prosecutor reads (a forensic count off the disk, NOT a peek at
+    # the withheld answer_key — _info2_original_exe_paths is the SAME source as the
+    # prompt evidence). Each round independently re-accuses a DIFFERENT recycle-bin
+    # entry; the loop stops early on exhaustion (a repeated accusation).
     result = run_court_on_case(
         case_dir,
         client=client,
         prosecutor_system=NIST_PROSECUTOR_SYSTEM,
         defender_system=NIST_DEFENDER_SYSTEM,
+        max_rounds=len(expected),
     )
     print(f"      findings: {len(result.findings)}", flush=True)
     for f in result.findings:
@@ -283,11 +293,12 @@ def main(argv: list[str] | None = None) -> int:
     n_finding = len(result.findings)
     tp = report.tp
     print("\n=== HONEST NIST-Q28 SUMMARY ===", flush=True)
-    print(f"  findings emitted (1 max per Court run): {n_finding}", flush=True)
-    print(f"  target-correct (exact path match):      {tp}/{n_finding if n_finding else 0}", flush=True)
-    print(f"  precision on the emitted finding:        {report.precision}", flush=True)
-    print(f"  recall vs 4 expected exes (struct. cap): {report.recall}  <- capped at 0.25 by one-finding limit", flush=True)
-    print(f"  F1 (single finding, capped recall):      {report.f1}", flush=True)
+    n_expected = len(expected)
+    print(f"  findings emitted (multi-round, max={n_expected}):  {n_finding}", flush=True)
+    print(f"  target-correct (exact path match):       {tp}/{n_finding if n_finding else 0}", flush=True)
+    print(f"  precision:                               {report.precision}", flush=True)
+    print(f"  recall vs {n_expected} recycle-bin exes:           {report.recall}  (single-finding cap lifted by independent re-accusation over real evidence)", flush=True)
+    print(f"  F1:                                      {report.f1}", flush=True)
     print(f"  transcript: {result.transcript_path}", flush=True)
     return 0
 

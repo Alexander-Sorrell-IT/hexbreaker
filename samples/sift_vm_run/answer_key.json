@@ -1,0 +1,39 @@
+{
+  "case_id": "case-004729-timestomp",
+  "decoys": [
+    {
+      "artifact_kind": "timestomp",
+      "must_have_verdict": "REJECTED",
+      "note": "normal entry with matching $SI/$FN",
+      "target": "\\Windows\\System32\\ntoskrnl.exe"
+    },
+    {
+      "artifact_kind": "timestomp",
+      "must_have_verdict": "REJECTED",
+      "note": "normal entry with matching $SI/$FN",
+      "target": "\\Windows\\System32\\spoolsv.exe"
+    },
+    {
+      "artifact_kind": "timestomp",
+      "must_have_verdict": "REJECTED",
+      "note": "normal entry with matching $SI/$FN",
+      "target": "\\Windows\\System32\\explorer.exe"
+    },
+    {
+      "artifact_kind": "timestomp",
+      "must_have_verdict": "REJECTED",
+      "note": "normal entry with matching $SI/$FN",
+      "target": "\\Windows\\System32\\lsass.exe"
+    }
+  ],
+  "expected_findings": [
+    {
+      "artifact_kind": "timestomp",
+      "must_have_verdict": "CONFIRMED",
+      "note": "$SI=2017-10-14T17:10:42Z $FN=2026-04-02T16:27:44Z",
+      "target": "\\Windows\\System32\\drivers\\mssecsvc2.exe"
+    }
+  ],
+  "planted": [],
+  "template": "timestomp"
+}

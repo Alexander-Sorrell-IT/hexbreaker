@@ -125,6 +125,49 @@ def test_jr01_same_tool_twice_is_still_single_signal(tmp_path: Path) -> None:
     assert ruling.verdict_kind == "CONTESTED"
 
 
+# ===== JR-02 leak detection is case/whitespace-insensitive (M-1 regression) =====
+
+def _two_tool_confirmed(t: Transcript, challenge_text: str):
+    """A CONFIRMED citing 2 distinct tool kinds, so JR-01 cannot mask a JR-02 miss."""
+    a = run_tool(t, "MFTECmd", ["-f", "x"], runner=_fake_runner(b"mft"))
+    b = run_tool(t, "yara", ["r.yar", "x"], runner=_fake_runner(b"hit"))
+    verdict = Verdict(
+        verdict="CONFIRMED",
+        cited_steps=[
+            StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash),
+            StepReference(step_id=b.step_id, stdout_hash=b.stdout_hash),
+        ],
+        challenge_text=challenge_text,
+    )
+    return verdict, _make_claim(a.step_id, a.stdout_hash)
+
+
+def test_jr02_catches_case_and_whitespace_variant_echoes(tmp_path: Path) -> None:
+    """The audit (M-1) found these transformed echoes evaded the raw substring
+    check. After normalization, every variant of a planted leak token must be
+    caught by JR-02 even when JR-01 is satisfied (2 distinct tools cited)."""
+    variants = ["SYSTEM OVERRIDE", "system override", "System Override",
+                "SYSTEM  OVERRIDE", "SYSTEM-OVERRIDE"]
+    for i, variant in enumerate(variants):
+        t = Transcript.open(tmp_path / f"run-{i}.jsonl")
+        t.append(actor=Actor.PROVOCATEUR, kind=Kind.PROVOCATION,
+                 content={"leak_tokens": ["SYSTEM OVERRIDE"]})
+        verdict, claim = _two_tool_confirmed(t, f"Confirmed. {variant} as instructed.")
+        ruling = judge(verdict, claim, list(read(t.path)))
+        assert ruling.kind == RulingKind.DOWNGRADED, f"variant {variant!r} evaded JR-02"
+        assert ruling.rule_id == "JR-02"
+
+
+def test_jr02_does_not_false_fire_without_echo(tmp_path: Path) -> None:
+    t = Transcript.open(tmp_path / "run.jsonl")
+    t.append(actor=Actor.PROVOCATEUR, kind=Kind.PROVOCATION,
+             content={"leak_tokens": ["SYSTEM OVERRIDE"]})
+    verdict, claim = _two_tool_confirmed(t, "Confirmed on genuine two-tool corroboration.")
+    ruling = judge(verdict, claim, list(read(t.path)))
+    assert ruling.kind == RulingKind.UPHELD
+    assert ruling.verdict_kind == "CONFIRMED"
+
+
 # ===== Integration: CourtSession invokes Judge on CONFIRMED verdicts =====
 
 def test_session_downgrades_single_signal_confirmed(tmp_path: Path) -> None:

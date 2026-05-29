@@ -1,0 +1,32 @@
+{
+  "allowed_tools": [
+    "MFTECmd",
+    "yara"
+  ],
+  "case_id": "case-004729-timestomp",
+  "defender_steps": [
+    {
+      "args": [
+        "/case/rules/apt.yar",
+        "/case/artifacts/mssecsvc2.exe"
+      ],
+      "tool": "yara"
+    }
+  ],
+  "description": "Synthetic NTFS MFT excerpt containing one timestomped binary (\\Windows\\System32\\drivers\\mssecsvc2.exe) where $SI and $FN created timestamps differ by 3091 days. Four decoy entries have matching $SI/$FN. Expected finding: timestomp on \\Windows\\System32\\drivers\\mssecsvc2.exe.",
+  "mock_outputs": {
+    "MFTECmd|-f|/case/MFT": "mock_outputs/mft.csv",
+    "yara|/case/rules/apt.yar|/case/artifacts/mssecsvc2.exe": "mock_outputs/yara.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/MFT"
+      ],
+      "tool": "MFTECmd"
+    }
+  ],
+  "seed": 4729,
+  "template": "timestomp"
+}

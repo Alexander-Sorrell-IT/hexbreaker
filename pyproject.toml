@@ -30,6 +30,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=8", "pytest-asyncio>=0.23"]
 deepseek = ["openai>=1.40"]  # DeepSeek API is OpenAI-compatible
+mcp = ["mcp>=1.23"]  # MCP stdio server exposing the gated SIFT tool layer (hexbreaker.mcp.server)
 
 [project.scripts]
 hexbreaker = "hexbreaker.cli:main"

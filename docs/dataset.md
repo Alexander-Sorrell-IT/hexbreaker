@@ -51,7 +51,7 @@ Three more templates planned (browser artifact, prefetch, amcache execution) per
      "must_have_verdict": "REJECTED",
      "note": "normal entry with matching $SI/$FN"}
   ],
-  "planted": [  // present iff --provocateur
+  "planted": [  // key always present; non-empty iff --provocateur
     {"artifact_kind": "timestomp", "target": "\\Windows\\System32\\wininit.exe",
      "must_have_verdict": "REJECTED",
      "note": "planted: timestomp signature but no yara hit"}

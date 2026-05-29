@@ -25,8 +25,8 @@ Two products in one repo:
 | 3. Strict JSON schema | Pydantic with `extra="forbid"`, regex on step_id (`^S-\d{3,}$`) and hash (`^sha256:[0-9a-f]{64}$`); parse failure auto-rejects | `court/schema.py` | `test_schema.py` (9 cases) |
 | 4. SHA-256 hash chain | Every record's `this_hash` covers `prev_hash + canonical(content)`; tampering breaks the chain | `transcript.py::Transcript.append + verify` | `test_transcript.py::test_verify_detects_content_tampering` |
 | 4+. Cited-hash cross-check | Verdicts cite both step_id AND stdout_hash; hash substitution attack rejected | `court/validator.py::_validate_reference` | `test_validator.py::test_verdict_rejected_on_hash_substitution` |
-| 5. HMAC-SHA256 signing | PBKDF2 600K → 32-byte key → per-transcript HMAC over (chain_head, record_count). Detects append, truncation, and content tampering. | `court/hmac_chain.py` (Valhuntir MIT port) | `test_hmac_chain.py` (9 cases) |
-| 6. Provocateur runtime role | One prompt-injection payload fired into every Court round; Judge JR-02 downgrades any Verdict whose `challenge_text` echoes the payload's leak tokens | `court/provocateur.py` + `court/judge.py::jr_02_provocation_leak` | `test_provocateur.py` (7 cases) |
+| 5. HMAC-SHA256 signing | PBKDF2 600K → 32-byte key → per-transcript HMAC over (chain_head, record_count). Detects append and truncation directly; a non-tail content edit is caught by the Layer-4 hash chain — `verify_signature` returns ok only if chain AND HMAC both pass. (The bare SHA chain alone is recompute-forgeable; tamper-evidence requires the HMAC.) | `court/hmac_chain.py` (Valhuntir MIT port) | `test_hmac_chain.py` (9 cases) |
+| 6. Provocateur runtime role | One prompt-injection payload fired once per case; Judge JR-02 downgrades any Verdict (in any round) whose `challenge_text` echoes the payload's leak tokens (case/whitespace-insensitive match) | `court/provocateur.py` + `court/judge.py::jr_02_provocation_leak` | `test_provocateur.py` (7 cases) + `test_judge.py` (JR-02 evasion) |
 
 **The principle**: *The model is allowed to think anything. It is only allowed to cite what the orchestrator can prove exists.*
 
@@ -34,7 +34,8 @@ Two products in one repo:
 
 | Boundary | Enforced by | Architectural or prompt-based? |
 |---|---|---|
-| Evidence read-only | Sidecar files written under `<transcript>.outputs/`; no write into case dir during run | **Architectural** |
+| Evidence read-only | A run writes only NEW artifacts (`transcript.jsonl` + `<transcript>.outputs/`) into the case dir; it never overwrites existing evidence files (manifest / answer_key / mock_outputs) | **Architectural** |
+| MCP tool exposure | `hexbreaker.mcp.server` exposes one tool, `run_sift_tool`, whose `tool` arg is an enum of `SUPPORTED_TOOLS`; `run_tool` re-enforces the same gate server-side and returns hash-chained chain-of-custody, never raw output as "verified" | **Architectural** |
 | Destructive command isolation | `SUPPORTED_TOOLS` frozenset; `subprocess.run(shell=False)`; tool name validated before exec | **Architectural** |
 | Path traversal in case dirs | `CaseManifest.mock_outputs` field_validator rejects absolute / `..` / drive-letter paths; runtime `is_relative_to(case_path.resolve())` containment check | **Architectural** |
 | Path traversal in transcript resume | `run_court_on_case` refuses pre-existing transcript.jsonl in case dirs; `_render_transcript` validates each sidecar path is `is_relative_to(transcript_dir)` | **Architectural** |

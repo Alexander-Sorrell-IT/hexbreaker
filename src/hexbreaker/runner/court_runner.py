@@ -231,6 +231,7 @@ def run_court_on_case(
     transcript_path: str | Path | None = None,
     prosecutor_system: str | None = None,
     defender_system: str | None = None,
+    max_rounds: int = 1,
 ) -> CourtRunResult:
     # The default prompts are timestomp/MFT-specific. A non-Forge dataset (e.g.
     # the NIST recycle-bin adapter) can supply domain-appropriate system prompts
@@ -265,17 +266,17 @@ def run_court_on_case(
         client = llm.DeepSeekClient()
 
     t = Transcript.open(transcript_path)
-    session = CourtSession(t)
     mock_runner = mock_runner_from_case(case_path, manifest)
 
-    # 1. Pre-pass evidence for the Prosecutor.
+    # 1. Pre-pass evidence for the Prosecutor (fires ONCE; shared across rounds).
     pre = _run_prepass_steps(t, manifest.pre_pass_steps, mock_runner)
 
-    # 1b. Provocateur fires inline (Layer 6). One adversarial payload per round,
-    # deterministic from the case seed. The payload appears in the transcript
-    # view that both Prosecutor and Defender consume; the Judge's JR-02 rule
-    # downgrades any Verdict whose challenge_text echoes the payload's leak
-    # tokens. Per prompts/provocateur.md: "You are never silent."
+    # 1b. Provocateur fires inline ONCE before the loop (Layer 6) — one adversarial
+    # payload per case, deterministic from the case seed. The payload appears in the
+    # transcript view that both Prosecutor and Defender consume; the Judge's JR-02
+    # rule downgrades any Verdict whose challenge_text echoes the payload's leak
+    # tokens. Per prompts/provocateur.md: "You are never silent." Single-fire keeps
+    # "one adversarial payload per case" and keeps fp_planted measurement valid.
     provocation = emit_provocation(seed=manifest.seed)
     t.append(
         actor=Actor.PROVOCATEUR,
@@ -283,106 +284,140 @@ def run_court_on_case(
         content=provocation.model_dump(),
     )
 
-    # 2. Prosecutor turn.
-    transcript_view = _render_transcript(transcript_path)
-    claim_resp = _llm_json(
-        client,
-        system=prosecutor_system,
-        user=f"Transcript so far:\n{transcript_view}\n\nEmit your Claim now.",
-        model=llm.DEEPSEEK_CHAT,
-    )
-    claim_outcome = session.submit_claim(claim_resp.content)
+    findings: list[dict[str, Any]] = []
+    accused: list[tuple[str, str]] = []  # every (artifact_kind, target) accused, agent-authored
 
-    if claim_outcome.claim is None:
-        # Retry once with a hint of real citations.
-        hint = _citation_hint(pre)
+    # 2-5. Bounded multi-round investigation. max_rounds=1 is byte-identical to the
+    # single-finding path. Each round is a FRESH CourtSession on the SAME transcript,
+    # so the FSM (R1/R2), Judge, validator, hash chain, and HMAC are all re-enforced
+    # per round WITHOUT touching their code. The round-2+ Prosecutor prompt lists only
+    # the agent's OWN prior accusations (never the answer key) and asks for a different
+    # artifact; the loop stops on exhaustion (a repeated accusation) or no valid claim.
+    for round_idx in range(max_rounds):
+        session = CourtSession(t)
+
+        # 2. Prosecutor turn.
+        transcript_view = _render_transcript(transcript_path)
+        already = ""
+        if round_idx > 0 and accused:
+            already = (
+                "\n\nAlready accused (do NOT repeat — name a DIFFERENT artifact): "
+                + ", ".join(f"({k}, {tgt})" for k, tgt in sorted(accused))
+            )
         claim_resp = _llm_json(
             client,
             system=prosecutor_system,
-            user=f"Transcript so far:\n{transcript_view}\n\n{hint}\n\nEmit the Claim now.",
+            user=f"Transcript so far:\n{transcript_view}{already}\n\nEmit your Claim now.",
             model=llm.DEEPSEEK_CHAT,
-            temperature=0.0,
         )
         claim_outcome = session.submit_claim(claim_resp.content)
 
-    if claim_outcome.claim is None:
-        return _write_findings(manifest, [], transcript_path, findings_path)
+        if claim_outcome.claim is None:
+            # Retry once with a hint of real citations.
+            hint = _citation_hint(pre)
+            claim_resp = _llm_json(
+                client,
+                system=prosecutor_system,
+                user=f"Transcript so far:\n{transcript_view}{already}\n\n{hint}\n\nEmit the Claim now.",
+                model=llm.DEEPSEEK_CHAT,
+                temperature=0.0,
+            )
+            claim_outcome = session.submit_claim(claim_resp.content)
 
-    # 3. Defender's forced tool observation (through the FSM so R2 counts it).
-    defender_evidence = _run_defender_steps(session, manifest.defender_steps, mock_runner)
-    citable = pre + defender_evidence
+        if claim_outcome.claim is None:
+            # No valid claim this round → stop. break (NOT early-return) so findings
+            # are written exactly once below — preserves max_rounds=1 byte-identity.
+            break
 
-    # 4. Defender turn.
-    transcript_view = _render_transcript(transcript_path)
-    verdict_resp = _llm_json(
-        client,
-        system=defender_system,
-        user=(
-            f"Transcript:\n{transcript_view}\n\n"
-            f"Claim under review:\n{claim_outcome.claim.model_dump_json()}\n\n"
-            f"Emit your Verdict now."
-        ),
-        model=llm.DEEPSEEK_REASONER,
-    )
-    verdict_outcome = session.submit_verdict(verdict_resp.content)
+        claim_key = (claim_outcome.claim.artifact_kind, claim_outcome.claim.target)
+        if claim_key in accused:
+            break  # Prosecutor repeated a prior accusation → exhaustion signal
+        accused.append(claim_key)
 
-    if not verdict_outcome.accepted:
-        hint = _citation_hint(citable)
+        # 3. Defender's forced tool observation (through the FSM so R2 counts it).
+        defender_evidence = _run_defender_steps(session, manifest.defender_steps, mock_runner)
+        citable = pre + defender_evidence
+
+        # 4. Defender turn.
+        transcript_view = _render_transcript(transcript_path)
         verdict_resp = _llm_json(
             client,
             system=defender_system,
             user=(
                 f"Transcript:\n{transcript_view}\n\n"
-                f"Claim:\n{claim_outcome.claim.model_dump_json()}\n\n"
-                f"{hint}\n\nEmit your Verdict now."
+                f"Claim under review:\n{claim_outcome.claim.model_dump_json()}\n\n"
+                f"Emit your Verdict now."
             ),
             model=llm.DEEPSEEK_REASONER,
-            temperature=0.0,
         )
         verdict_outcome = session.submit_verdict(verdict_resp.content)
 
-    # 5. Witness: invoked whenever the final Verdict is CONTESTED (either the
-    # Defender chose CONTESTED or the Judge downgraded). The Witness records
-    # an independent observation drawn from a tool NOT yet used by Prosecutor
-    # or Defender (their disjoint toolset, per architecture.md). This is the
-    # 5th role on the wire; full Witness reasoning is Week 2 — for v1 we
-    # record the call so a judge inspecting the transcript can see all five
-    # actors fired.
-    if verdict_outcome.accepted and verdict_outcome.verdict is not None:
-        if verdict_outcome.verdict.verdict == "CONTESTED":
-            used_tools = {s.tool for s in pre + defender_evidence}
-            unused = [a for a in manifest.allowed_tools if a not in used_tools]
-            t.append(
-                actor=Actor.WITNESS,
-                kind=Kind.WITNESS_OPINION,
-                content={
-                    "event": "witness_called_on_contested",
-                    "tools_already_used": sorted(used_tools),
-                    "tools_witness_would_consult": unused,
-                    "opinion": (
-                        "Verdict is CONTESTED. Independent re-derivation would "
-                        f"use {unused or '<no fresh tools available in manifest>'}. "
-                        "Full Witness LLM reasoning lands Week 2; v1 records the "
-                        "call so the 5-role architecture is observable in transcripts."
-                    ),
-                },
+        if not verdict_outcome.accepted:
+            hint = _citation_hint(citable)
+            verdict_resp = _llm_json(
+                client,
+                system=defender_system,
+                user=(
+                    f"Transcript:\n{transcript_view}\n\n"
+                    f"Claim:\n{claim_outcome.claim.model_dump_json()}\n\n"
+                    f"{hint}\n\nEmit your Verdict now."
+                ),
+                model=llm.DEEPSEEK_REASONER,
+                temperature=0.0,
             )
+            verdict_outcome = session.submit_verdict(verdict_resp.content)
 
-    findings: list[dict[str, Any]] = []
-    if verdict_outcome.accepted and verdict_outcome.verdict is not None:
-        if verdict_outcome.verdict.verdict == "CONFIRMED":
-            findings.append(
-                {
-                    "artifact_kind": claim_outcome.claim.artifact_kind,
-                    "target": claim_outcome.claim.target,
-                    "verdict": verdict_outcome.verdict.verdict,
-                    "cited_steps": [s.step_id for s in verdict_outcome.verdict.cited_steps],
-                    "challenge_text": verdict_outcome.verdict.challenge_text,
-                    "reasoning_excerpt": (verdict_resp.reasoning_content or "")[:600],
-                }
-            )
+        # 5. Witness: invoked whenever the final Verdict is CONTESTED (either the
+        # Defender chose CONTESTED or the Judge downgraded). The Witness records
+        # an independent observation drawn from a tool NOT yet used by Prosecutor
+        # or Defender (their disjoint toolset, per architecture.md). This is the
+        # 5th role on the wire; full Witness reasoning is Week 2 — for v1 we
+        # record the call so a judge inspecting the transcript can see all five
+        # actors fired.
+        if verdict_outcome.accepted and verdict_outcome.verdict is not None:
+            if verdict_outcome.verdict.verdict == "CONTESTED":
+                used_tools = {s.tool for s in pre + defender_evidence}
+                unused = [a for a in manifest.allowed_tools if a not in used_tools]
+                t.append(
+                    actor=Actor.WITNESS,
+                    kind=Kind.WITNESS_OPINION,
+                    content={
+                        "event": "witness_called_on_contested",
+                        "tools_already_used": sorted(used_tools),
+                        "tools_witness_would_consult": unused,
+                        "opinion": (
+                            "Verdict is CONTESTED. Independent re-derivation would "
+                            f"use {unused or '<no fresh tools available in manifest>'}. "
+                            "Full Witness LLM reasoning lands Week 2; v1 records the "
+                            "call so the 5-role architecture is observable in transcripts."
+                        ),
+                    },
+                )
 
-    return _write_findings(manifest, findings, transcript_path, findings_path)
+        if verdict_outcome.accepted and verdict_outcome.verdict is not None:
+            if verdict_outcome.verdict.verdict == "CONFIRMED":
+                findings.append(
+                    {
+                        "artifact_kind": claim_outcome.claim.artifact_kind,
+                        "target": claim_outcome.claim.target,
+                        "verdict": verdict_outcome.verdict.verdict,
+                        "cited_steps": [s.step_id for s in verdict_outcome.verdict.cited_steps],
+                        "challenge_text": verdict_outcome.verdict.challenge_text,
+                        "reasoning_excerpt": (verdict_resp.reasoning_content or "")[:600],
+                    }
+                )
+
+    # Dedup findings on (artifact_kind, target), stable order, keep first. No-op for
+    # max_rounds=1 (≤1 finding) → byte-identical findings.json.
+    seen_keys: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for f in findings:
+        k = (f["artifact_kind"], f["target"])
+        if k not in seen_keys:
+            seen_keys.add(k)
+            deduped.append(f)
+
+    return _write_findings(manifest, deduped, transcript_path, findings_path)
 
 
 def _sign_if_keyed(transcript_path: Path) -> None:

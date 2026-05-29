@@ -21,9 +21,9 @@ That's not a methodology indictment; it's a **dataset saturation problem.** When
 |---|---|
 | Prosecutor | Reads tool output, identifies one artifact, files a structured Claim |
 | Defender | Investigates, demands corroboration, files a structured Verdict |
-| Witness | Called when Prosecutor and Defender disagree (CONTESTED); independent toolset |
+| Witness | Called whenever the FINAL verdict is CONTESTED — whether the Defender contested it or the Judge downgraded a CONFIRMED; independent toolset |
 | Judge | **Deterministic Python** (no LLM): rules JR-01..N gate final accept/reject |
-| Provocateur | Adversarial: fires a prompt-injection payload on every Court round |
+| Provocateur | Adversarial: fires one prompt-injection payload per case (Judge JR-02 checks every round's verdict against it) |
 
 Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA256** signing (PBKDF2 600,000 iterations, MIT-licensed pattern ported from AppliedIR/Valhuntir with attribution). Cited evidence references both `step_id` and `stdout_hash`; the citation validator (Layer 1) and the chain verifier (Layer 4) reject any Verdict that cites fabricated or tampered steps.
 
@@ -37,13 +37,13 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 | dhyabi2 IABF on NIST (Gemma 4 31B + SIFT, **their original stack**, **their self-reported number**) | 100% | dhyabi2/findevil ACCURACY.md |
 | dhyabi2 IABF on NIST (DeepSeek + Ubuntu, **our independent re-measurement**) | **0.0%** | `sweeps/competitors/score_deepseek.json` |
 | marez8505 on NIST under DeepSeek constraint | **not runnable** | competitor briefing — hardcoded to Anthropic `claude --print` |
-| Hexbreaker Court on Forge timestomp (full architecture, N=10, normal) | **F1 = 1.0 ± 0.0** | `sweeps/2026-05-28_N10_final_arch.json` |
-| Hexbreaker Court on Forge timestomp (full architecture, N=10, **max attack**: planted MFT + runtime prompt injection) | **F1 = 0.5 ± 0.53** | same sweep |
-| Provocateur bait-taking across both modes, N=20 total | **`fp_planted = 0/20`** | same sweep |
+| Hexbreaker Court on Forge (both templates, 40 runs/mode, normal) | **F1 ≈ 0.95–0.975** (0.975±0.158 and 0.95±0.221, two signed sweeps) | `sweeps/2026-05-28_N40_signed_audit.json` + `sweeps/2026-05-29_N40_signed_audit.json` (HMAC-signed) |
+| Hexbreaker Court on Forge (both templates, 40 runs/mode, **max attack**: planted artifacts + runtime prompt injection) | **F1 ≈ 0.475–0.525** (0.525 and 0.475) — high variance, "miss not lie" | same two sweeps |
+| Provocateur bait-taking | **0 planted artifacts confirmed** (across 40 provocateur runs the agent confirmed a finding in 21, none planted; 19 found nothing) | same sweep |
 
 **Head-to-head on NIST:** our independent re-measurement of dhyabi2 under hackathon constraints (DeepSeek-only, no SIFT VM) scored **0.0%**, vs their self-reported 100% on Gemma+SIFT. (We previously claimed a 95.08% Hexbreaker number here; it is withdrawn — see the table note above.)
 
-**Adversarial robustness:** across 20 runs with maximum attack pressure (planted MFT rows + runtime prompt injection on every round, all six safeguard layers firing), the agent **never once** confirmed a planted artifact. The architecture trades recall-under-attack for precision-under-attack — better to miss than to lie.
+**Adversarial robustness:** across 40 provocateur runs/mode with maximum attack pressure (planted MFT rows + runtime prompt injection on every round, all six safeguard layers firing), the agent **never once** confirmed a planted artifact. The architecture trades recall-under-attack for precision-under-attack — better to miss than to lie.
 
 ## How we built it
 
@@ -56,7 +56,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 5. Forge case template #1 (timestomp) + scorer + runner + CLI
 6. Friday-gate executed 3 days early (3/3 checks pass)
 7. Independent NIST head-to-head measurement
-8. Provocateur (Layer 6) + iterative N=10 sweep with measured self-correction (`fp_planted` 1/10 → 0/20 after the corroboration rule moved from Defender prompt to Judge JR-01)
+8. Provocateur (Layer 6) + iterative sweep with measured self-correction (`fp_planted`: 1 bait taken → 0 after the corroboration rule moved from Defender prompt to Judge JR-01)
 9. 9-angle code review + security review (parallel agents); 15 findings + 2 confirmed HIGH/MEDIUM path-traversal CVEs; both CVEs closed with 10 regression tests
 10. Witness wired (5th actor on the wire); HMAC signing (Layer 5) via MIT-licensed Valhuntir port
 
@@ -71,12 +71,12 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 - **Independent measurement of every named competitor under hackathon constraints.** marez8505 documented as unrunnable (Anthropic-locked); Valhuntir documented as human-in-loop (different category, MIT HMAC pattern borrowed with attribution); dhyabi2 measured at 0% with DeepSeek on Ubuntu. (A previously claimed 95.08% Hexbreaker NIST number is withdrawn — it relied on prompt-injected answers.)
 - **All six hallucination safeguards are in code, not prompt.** Step-ID referential integrity, forced tool-call FSM, strict JSON schema, hash chain, HMAC signing, Provocateur runtime — every layer demonstrably rejects bad input via a paired unit test.
 - **Adversarial audit caught real bugs.** Code review + security review found 15 cleanups, 2 path-traversal CVEs (both closed with regression tests), and the position-bias measurement artifact. The audits caught more than the unit tests — that's the safeguard architecture working at the development layer too.
-- **Self-correction is observable in the data, not just the prompt.** The Provocateur prompt-to-Judge migration (fp_planted 1/10 → 0/20) is a committed sweep artifact; anyone can replay it. (The earlier "iterative NIST 45.9% → 95.08%" story is withdrawn — that trajectory was driven by adding prompt-injected answer hints, not forensic improvement.)
+- **Self-correction is in code, and replayable.** The corroboration rule moved from the Defender's prompt into a deterministic Judge (JR-01); a CONFIRMED verdict that cites a single tool kind is overridden to CONTESTED at runtime. This is a committed, re-derivable artifact — `PYTHONPATH=src python scripts/demo_self_correction.py` drives the real Court + Judge and verifies the signed transcript. (The earlier "iterative NIST 45.9% → 95.08%" story is withdrawn — prompt-injected answers, not forensic improvement.)
 
 ## What we learned
 
 - **"Generative benchmark" is necessary infrastructure**, not a feature. When NIST is the only public ground-truth case, scaffolding overfits and "F1=100%" stops meaning what people think it means. Forge lets anyone test ANY DFIR agent on cases nobody — agent, author, judge — has seen before.
-- **Architectural guardrails beat prompt guardrails.** The seed-4004 bait-taking incident (where the Defender's prompt rule failed and the agent confirmed a planted artifact) was the cleanest demonstration. After we moved the rule to deterministic Python (Judge JR-01), the bait rate fell to 0/20 and stayed there across the rest of the buildout.
+- **Architectural guardrails beat prompt guardrails.** When the corroboration rule lived in the Defender's prompt, the LLM could ignore it and confirm on a single signal. Moving it into the deterministic Judge (JR-01) makes the override happen in code — demonstrated, committed, and replayable via `scripts/demo_self_correction.py` (CONFIRMED → CONTESTED, 0 findings). Across the signed sweep's 40 provocateur runs, 0 planted artifacts were confirmed.
 - **Independent measurement is more important than higher numbers.** Citing dhyabi2's published 100% would have been "ok." Re-running their pipeline ourselves and measuring 0% under hackathon constraints is the more honest — and frankly more useful to the community — number.
 
 ## What's next

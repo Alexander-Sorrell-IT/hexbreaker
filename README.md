@@ -5,7 +5,7 @@
 
 **Headline measurement (Hexbreaker Forge synthetic cases):**
 
-`fp_planted = 0/20` across N=20 Forge sweep with maximum adversarial pressure (planted MFT data + runtime prompt injection on every round, all 6 safeguard layers firing). The agent never confirmed a planted artifact across the entire sweep.
+Across **two** HMAC-signed Forge sweeps (40 runs/mode each): **F1 ≈ 0.95–0.975 normal / ≈ 0.475–0.525 under maximum adversarial pressure** (planted artifacts + runtime prompt injection on every round, all 6 safeguard layers firing). **0 planted artifacts confirmed across all 80 provocateur runs** (160/160 chain+HMAC verified). Honest caveat: in each sweep the agent confirmed a finding in ~19–21 of 40 provocateur runs (0 planted) and found nothing in the rest — bait-resistance is shown on the runs where it actually had the opportunity, not robustly across all 40. Exact F1 varies run-to-run (DeepSeek is non-deterministic); both committed JSONs are the artifacts of record.
 
 > **NIST batched-Q&A number withdrawn.** An earlier `scripts/court_on_nist.py`
 > run reported 95.08% F1 on the NIST CFReDS Hacking Case, but that batched
@@ -117,7 +117,7 @@ src/hexbreaker/
 ├── runner/court_runner.py
 └── cli.py               # hexbreaker generate / run / score / verify / sign
 
-tests/                   # 101 unit + 4 live integration
+tests/                   # 99 unit + 4 live integration (live skipped without HEXBREAKER_RUN_LIVE=1)
 docs/
 ├── architecture.md      # security boundaries + data flow
 ├── accuracy.md          # measured numbers + methodology
@@ -133,8 +133,8 @@ scripts/
 ## Tests
 
 ```bash
-pytest                                  # 94 unit tests, ~3 s
-HEXBREAKER_RUN_LIVE=1 pytest            # also runs 4 live DeepSeek integration tests
+pytest                                  # 99 unit tests pass (4 live tests skipped), ~8 s
+HEXBREAKER_RUN_LIVE=1 pytest            # also runs the 4 live DeepSeek integration tests (needs API key)
 ```
 
 Every safeguard has a paired test that proves it **rejects** bad input as well as accepts good input. Examples:
@@ -151,7 +151,7 @@ Every safeguard has a paired test that proves it **rejects** bad input as well a
 | Number | Command |
 |---|---|
 | dhyabi2 on NIST F1=0% under DeepSeek+Ubuntu | `bash /tmp/competitors/findevil/run_nist_deepseek.sh` after `git clone https://github.com/dhyabi2/findevil.git` |
-| Forge N=10 sweep F1=1.0 / 0.5, fp_planted=0/20 | `python scripts/sweep.py --seeds 10 --modes normal,provocateur --out sweeps/X.json` |
+| Forge sweep — two signed runs (20 seeds × 2 templates = 40 runs/mode each): F1 ≈ 0.95–0.975 / 0.475–0.525, 0 planted confirmed (`sweeps/2026-05-28_N40_signed_audit.json`, `sweeps/2026-05-29_N40_signed_audit.json`). Exact F1 varies run-to-run (DeepSeek is non-deterministic); the committed JSONs are the artifacts of record. | `python scripts/sweep.py --seeds 20 --templates timestomp,registry_persistence --modes normal,provocateur --out sweeps/X.json` |
 | Friday gate (generate / score / Court transcript) | `hexbreaker generate ... && hexbreaker run ... && hexbreaker score ...` |
 
 ## License
