@@ -158,9 +158,14 @@ repeated accusation) or no valid claim. Findings are deduped on
   artifacts — a timestomped driver (MFTECmd + yara on the same path) and an HKLM
   Run-key persistence (RECmd + EvtxECmd Sysmon EventID-13 naming the same key) —
   each with **genuine per-target corroboration** so JR-01 is honestly satisfiable,
-  plus a planted bait with a primary signal but no corroborator. Run under
-  `max_rounds ≥ 2` it measures both multi-TP recall AND `fp_planted = 0` under
-  multi-finding load (separate signed sweep).
+  plus a planted bait with a primary signal but no corroborator. **Measured**
+  (`sweeps/2026-05-29_C2_multi.json`, `max_rounds=3`, 10 seeds × 2 modes,
+  HMAC-signed, **20/20 chain+HMAC verified**): the loop surfaced **both** true
+  artifacts in a single run in **13 of 20 runs**; the provocateur arm scored
+  **precision 1.0 / recall 0.85 / F1 0.9 with `fp_planted = 0/10`**, and the
+  normal arm F1 0.893. So accuracy **holds under multi-finding load** — multiple
+  true positives per run AND zero bait taken under attack. This is the measured C2
+  lift the base diff alone could not provide.
 - **Honest limitation (flagged, not fixed):** JR-01 corroboration counts ≥2 distinct
   tool *kinds* cited, not per-target referential relevance (the queued JR-02-relevance
   rule). Multi-round does not strengthen corroboration; we do not claim it does.
