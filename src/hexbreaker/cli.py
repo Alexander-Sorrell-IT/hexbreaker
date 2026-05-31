@@ -8,7 +8,14 @@ import click
 import orjson
 
 from .court.hmac_chain import sign_transcript, verify_signature
-from .forge import template_multi_artifact, template_registry_persistence, template_timestomp
+from .forge import (
+    template_amcache,
+    template_browser,
+    template_multi_artifact,
+    template_prefetch,
+    template_registry_persistence,
+    template_timestomp,
+)
 from .forge.case import AnswerKey
 from .runner.court_runner import run_court_on_case
 from .scorer.exact_match import score
@@ -18,6 +25,9 @@ TEMPLATES = {
     "timestomp": template_timestomp.generate,
     "registry_persistence": template_registry_persistence.generate,
     "multi_artifact": template_multi_artifact.generate,
+    "browser": template_browser.generate,
+    "prefetch": template_prefetch.generate,
+    "amcache": template_amcache.generate,
 }
 
 

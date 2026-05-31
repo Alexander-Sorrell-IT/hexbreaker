@@ -24,7 +24,10 @@ import os
 from hexbreaker import llm
 from hexbreaker.court.hmac_chain import HMAC_ENV, verify_signature
 from hexbreaker.forge import (
+    template_amcache,
+    template_browser,
     template_multi_artifact,
+    template_prefetch,
     template_registry_persistence,
     template_timestomp,
 )
@@ -37,6 +40,9 @@ TEMPLATES = {
     "timestomp": template_timestomp.generate,
     "registry_persistence": template_registry_persistence.generate,
     "multi_artifact": template_multi_artifact.generate,
+    "browser": template_browser.generate,
+    "prefetch": template_prefetch.generate,
+    "amcache": template_amcache.generate,
 }
 
 

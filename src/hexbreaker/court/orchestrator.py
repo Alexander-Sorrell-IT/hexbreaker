@@ -56,6 +56,7 @@ class VerdictOutcome(BaseModel):
     verdict: Verdict | None
     record: StepRecord | None
     accepted: bool
+    corroboration_strength: str = "unknown"  # JR-01b report-only audit
 
 
 class CourtSession:
@@ -188,7 +189,11 @@ class CourtSession:
         # enforcer for (corroboration etc.). A downgrade is recorded as a
         # JUDGE event and the stored Verdict is the post-Judge one.
         assert self.claim is not None  # claim accepted before any verdict
-        ruling = judge(verdict, self.claim, records)
+        # Build the cited tools' stdout so JR-01b can check per-target relevance.
+        # The wired path ALWAYS supplies it (never silently skipped); sidecars are
+        # read path-safely, mirroring transcript._verify_sidecar.
+        tool_stdout = _cited_tool_stdout(verdict, records, self.transcript.path.parent)
+        ruling = judge(verdict, self.claim, records, tool_stdout=tool_stdout)
         if ruling.kind == RulingKind.DOWNGRADED:
             self.transcript.append(
                 actor=Actor.JUDGE,
@@ -200,6 +205,7 @@ class CourtSession:
                     "original_verdict": verdict.verdict,
                     "final_verdict": ruling.verdict_kind,
                     "distinct_tools_cited": ruling.distinct_tools_cited,
+                    "corroboration_strength": ruling.corroboration_strength,
                 },
             )
             verdict_dict = verdict.model_dump()
@@ -212,8 +218,12 @@ class CourtSession:
             content=verdict.model_dump(),
         )
         self.verdict = verdict
+        self.corroboration_strength = ruling.corroboration_strength
         self.state = State.VERDICT_ACCEPTED
-        return VerdictOutcome(result=result, verdict=verdict, record=rec, accepted=True)
+        return VerdictOutcome(
+            result=result, verdict=verdict, record=rec, accepted=True,
+            corroboration_strength=ruling.corroboration_strength,
+        )
 
 
 def _stringify(raw: str | bytes) -> str:
@@ -224,3 +234,32 @@ def _read_records(transcript: Transcript) -> list[StepRecord]:
     """Read the on-disk records for cross-referential validation."""
     from ..transcript import read as read_records  # local import avoids cycle at import time
     return list(read_records(transcript.path))
+
+
+def _cited_tool_stdout(
+    verdict: Verdict, records: list[StepRecord], transcript_dir: Path
+) -> dict[str, str]:
+    """Read the stdout of each cited TOOL_CALL step from its sidecar, path-safely.
+
+    JR-01b needs the actual tool output to verify the cited evidence names the
+    target. Paths resolve against the transcript dir; any that escape it are
+    skipped (treated as absent), mirroring transcript._verify_sidecar's defense.
+    """
+    by_id = {r.step_id: r for r in records}
+    base = transcript_dir.resolve()
+    out: dict[str, str] = {}
+    for ref in verdict.cited_steps:
+        rec = by_id.get(ref.step_id)
+        if rec is None or rec.kind != Kind.TOOL_CALL:
+            continue
+        rel = rec.content.get("stdout_path")
+        if not isinstance(rel, str):
+            continue
+        candidate = (base / rel).resolve()
+        if not candidate.is_relative_to(base):
+            continue
+        try:
+            out[ref.step_id] = candidate.read_text(errors="replace")
+        except OSError:
+            continue
+    return out

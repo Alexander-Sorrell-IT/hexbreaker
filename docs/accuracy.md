@@ -150,9 +150,13 @@ repeated accusation) or no valid claim. Findings are deduped on
   `max_rounds = N`, where N is the number of deleted-exe slots **visible in the
   INFO2 recycle-bin evidence the Prosecutor reads** (a forensic count off the disk,
   not a peek at the withheld answer key). Each round independently re-accuses a
-  different recycle-bin entry. *Measurement status:* code-ready and unit-tested; the
-  measured recall lift is pending re-staging the NIST disk extracts (the `.E01` is
-  not on the current host). The prior single-finding recall (~0.25) is the baseline.
+  different recycle-bin entry. *Measurement status:* the NIST `.E01`
+  (`datasets/nist-hacking-case/4Dell_Latitude_CPi.E01`) and its extracts are staged
+  on the host, so the genuine multi-round Court-on-NIST is runnable; the measured,
+  signed multi-round result is reported in the NIST section below. The prior
+  single-finding recall (~0.25) is the baseline it lifts from. Reported honestly as
+  N-of-4 recycle-bin exes with `artifact_kind='other'` — this is ~1 of the ~31 NIST
+  question-families, not a 31-question F1.
 - **Measured accuracy-under-load (C2):** a new multi-expected Forge case
   (`template_multi_artifact`, headline templates untouched) ships TWO distinct true
   artifacts — a timestomped driver (MFTECmd + yara on the same path) and an HKLM
@@ -166,9 +170,19 @@ repeated accusation) or no valid claim. Findings are deduped on
   normal arm F1 0.893. So accuracy **holds under multi-finding load** — multiple
   true positives per run AND zero bait taken under attack. This is the measured C2
   lift the base diff alone could not provide.
-- **Honest limitation (flagged, not fixed):** JR-01 corroboration counts ≥2 distinct
-  tool *kinds* cited, not per-target referential relevance (the queued JR-02-relevance
-  rule). Multi-round does not strengthen corroboration; we do not claim it does.
+- **Corroboration strength — measured & disclosed (JR-01b, report-only):** JR-01
+  enforces ≥2 distinct tool *kinds* cited; it does not enforce that a second tool
+  *names the target*. We do not fake a downgrade rule for this — a replay proved a
+  strict per-target downgrade would false-downgrade genuine findings (including the
+  real NIST 4/4), because real DFIR corroborates **cross-identifier**: a recycle-bin
+  slot maps to its original path via INFO2, a Run key is corroborated by the launched
+  binary, not by a second tool naming the key. Instead the Judge **annotates** each
+  CONFIRMED finding with `corroboration_strength` — `strong` (≥2 cited tools each
+  name the target/leaf) or `single_identifier` (cross-identifier) — recorded in the
+  signed transcript. This closes the structural-vs-semantic gap the integrity way:
+  by measuring it, not hiding it. A genuine *architectural* downgrade would require
+  rebuilding each template's corroboration to be same-identifier (as the registry
+  template now is, via Sysmon EventID-13); that is post-submission work, not claimed.
 
 ## 3. Independent verification of dhyabi2's 100% on NIST
 

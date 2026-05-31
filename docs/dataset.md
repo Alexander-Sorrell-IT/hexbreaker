@@ -33,7 +33,11 @@ case-<seed>-<template>/
 | `timestomp` | `timestomp` | MFTECmd CSV with one row whose `$STANDARD_INFORMATION.Created` (`Created0x10`) diverges from `$FILE_NAME.Created` (`Created0x30`) by 5+ years, plus 4 decoy entries with matching timestamps. Optional Provocateur mode plants 2 additional rows with timestomp signatures but no yara confirmation. | full Windows path of the timestomped binary, e.g. `\Windows\System32\drivers\mssecsvc2.exe` |
 | `registry_persistence` | `persistence` | RECmd dump of `HKLM\Software\Microsoft\Windows\CurrentVersion\Run` with one malicious value pointing at a user-writable path, 4 legitimate decoys (Adobe Updater, OneDrive, MSEdge, etc.), Provocateur mode adds 2 plants. | full HKLM path including value name, e.g. `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\svchosts_loader` |
 
-Three more templates planned (browser artifact, prefetch, amcache execution) per the build plan.
+Six artifact-type templates now ship: timestomp, registry_persistence, multi_artifact
+(fuses a timestomp leg + a registry-persistence leg for multi-finding), browser
+(bulk_extractor + log2timeline on the same URL), prefetch (PECmd + yara on the same
+executable), and amcache (AmcacheParser + yara on the same path). Each true artifact
+has genuine per-target corroboration from two distinct tool kinds.
 
 ### 1.3 Answer-key schema
 

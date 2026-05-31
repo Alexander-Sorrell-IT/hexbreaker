@@ -403,6 +403,7 @@ def run_court_on_case(
                         "verdict": verdict_outcome.verdict.verdict,
                         "cited_steps": [s.step_id for s in verdict_outcome.verdict.cited_steps],
                         "challenge_text": verdict_outcome.verdict.challenge_text,
+                        "corroboration_strength": verdict_outcome.corroboration_strength,
                         "reasoning_excerpt": (verdict_resp.reasoning_content or "")[:600],
                     }
                 )

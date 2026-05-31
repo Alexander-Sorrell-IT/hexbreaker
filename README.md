@@ -23,7 +23,7 @@ Full numbers + per-question breakdown: [docs/accuracy.md](docs/accuracy.md).
 
 Two products in one repo:
 
-1. **Hexbreaker Forge** — generative DFIR case synthesizer. `seed: int → manifest.json + answer_key.json + mock_outputs/`. Deterministic, adversarial-mode (`--provocateur`) supported. Two case templates in v1 (timestomp, registry persistence); three more queued.
+1. **Hexbreaker Forge** — generative DFIR case synthesizer. `seed: int → manifest.json + answer_key.json + mock_outputs/`. Deterministic, adversarial-mode (`--provocateur`) supported. **Six artifact-type templates**: timestomp, registry_persistence, multi_artifact (multi-finding), browser, prefetch, amcache — each with genuine 2-tool per-target corroboration.
 2. **Hexbreaker Court** — 5-role adversarial agent. Prosecutor + Defender + Witness + **deterministic Python Judge (NO LLM)** + Provocateur (runtime prompt-injection role). Six layered hallucination safeguards (all in code, none in prompt). Hash-chained JSONL transcripts with HMAC-SHA256 signing (PBKDF2 600K, MIT-licensed primitive ported from AppliedIR/Valhuntir with attribution).
 
 The Forge is the headline product — it lets the community honestly measure any DFIR agent on cases the agent has never seen. The Court is one agent built on top, graded by Forge like any other.
@@ -112,28 +112,39 @@ src/hexbreaker/
 ├── forge/
 │   ├── case.py          # CaseManifest + AnswerKey + mock_runner
 │   ├── template_timestomp.py
-│   └── template_registry_persistence.py
+│   ├── template_registry_persistence.py
+│   ├── template_multi_artifact.py   # multi-finding (timestomp + persistence)
+│   ├── template_browser.py
+│   ├── template_prefetch.py
+│   └── template_amcache.py
 ├── scorer/exact_match.py
 ├── runner/court_runner.py
 └── cli.py               # hexbreaker generate / run / score / verify / sign
 
-tests/                   # 99 unit + 4 live integration (live skipped without HEXBREAKER_RUN_LIVE=1)
+tests/                   # 176 unit + 4 live integration (live skipped without HEXBREAKER_RUN_LIVE=1)
 docs/
 ├── architecture.md      # security boundaries + data flow
 ├── accuracy.md          # measured numbers + methodology
 ├── competitors.md       # independent briefings on dhyabi2 / marez / Valhuntir
 ├── dataset.md           # Forge + NIST documentation
+├── benchmark_datasheet.md  # "Datasheet for Datasets" — Forge as a benchmark
+├── brittleness.md       # robustness / failure-mode study (miss-not-lie)
+├── autonomy.md          # honest C1 autonomy characterization
+├── repro.md             # clean-room Docker reproduction guide
 └── devpost.md           # Devpost submission narrative
 sweeps/                  # committed sweep results (replayable)
 scripts/
 ├── sweep.py             # multi-seed Court harness
-└── court_on_nist.py     # NIST Hacking Case adapter
+├── brittleness.py       # robustness / failure-mode harness (--from-sweep | --vary)
+├── demo_self_correction.py  # replayable JR-01 self-correction artifact
+├── court_on_nist_fsm.py # genuine FSM Court on the real NIST .E01 (no injection)
+└── court_on_nist.py     # WITHDRAWN batched adapter (prompt-injected; do not cite)
 ```
 
 ## Tests
 
 ```bash
-pytest                                  # 99 unit tests pass (4 live tests skipped), ~8 s
+pytest                                  # 176 unit tests pass (4 live tests skipped), ~8 s
 HEXBREAKER_RUN_LIVE=1 pytest            # also runs the 4 live DeepSeek integration tests (needs API key)
 ```
 

@@ -168,6 +168,60 @@ def test_jr02_does_not_false_fire_without_echo(tmp_path: Path) -> None:
     assert ruling.verdict_kind == "CONFIRMED"
 
 
+# ===== JR-01b report-only corroboration-strength audit (never downgrades) =====
+
+def test_jr01b_strength_strong_when_two_tools_name_target(tmp_path: Path) -> None:
+    """>=2 distinct cited tools each name the target (or its leaf) -> 'strong'.
+    JR-01b is report-only: the verdict stays CONFIRMED."""
+    t = Transcript.open(tmp_path / "run.jsonl")
+    target = "\\Windows\\System32\\drivers\\evil.sys"
+    a = run_tool(t, "MFTECmd", ["-f", "x"], runner=_fake_runner(b"...,evil.sys,\\Windows\\System32\\drivers,..."))
+    b = run_tool(t, "yara", ["r.yar"], runner=_fake_runner(b"evil.sys: HIT"))
+    verdict = Verdict(verdict="CONFIRMED",
+                      cited_steps=[StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash),
+                                   StepReference(step_id=b.step_id, stdout_hash=b.stdout_hash)],
+                      challenge_text="two tools name the leaf")
+    claim = Claim(text="x", artifact_kind="timestomp", target=target,
+                  cited_steps=[StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash)])
+    stdout = {a.step_id: a.stdout.decode(), b.step_id: b.stdout.decode()}
+    ruling = judge(verdict, claim, list(read(t.path)), tool_stdout=stdout)
+    assert ruling.verdict_kind == "CONFIRMED"  # report-only: not downgraded
+    assert ruling.corroboration_strength == "strong"
+
+
+def test_jr01b_strength_single_identifier_cross_id(tmp_path: Path) -> None:
+    """Cross-identifier corroboration (only ONE cited tool names the target) ->
+    'single_identifier', but the verdict is NOT downgraded (report-only)."""
+    t = Transcript.open(tmp_path / "run.jsonl")
+    target = "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\evilval"
+    # RECmd names the value (leaf 'evilval'); the 2nd tool names only the binary.
+    a = run_tool(t, "RECmd", ["-f", "x"], runner=_fake_runner(b"...Run,evilval,REG_SZ,C:\\eviltool.exe,..."))
+    b = run_tool(t, "yara", ["r.yar"], runner=_fake_runner(b"C:\\eviltool.exe: HIT"))  # names binary, not key
+    verdict = Verdict(verdict="CONFIRMED",
+                      cited_steps=[StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash),
+                                   StepReference(step_id=b.step_id, stdout_hash=b.stdout_hash)],
+                      challenge_text="cross-identifier corroboration")
+    claim = Claim(text="x", artifact_kind="persistence", target=target,
+                  cited_steps=[StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash)])
+    stdout = {a.step_id: a.stdout.decode(), b.step_id: b.stdout.decode()}
+    ruling = judge(verdict, claim, list(read(t.path)), tool_stdout=stdout)
+    assert ruling.verdict_kind == "CONFIRMED"  # NOT downgraded — genuine cross-id finding
+    assert ruling.corroboration_strength == "single_identifier"
+
+
+def test_jr01b_strength_unknown_without_stdout(tmp_path: Path) -> None:
+    """No tool_stdout supplied (pure-logic call) -> 'unknown', no crash."""
+    t = Transcript.open(tmp_path / "run.jsonl")
+    a = run_tool(t, "MFTECmd", ["-f", "x"], runner=_fake_runner(b"mft"))
+    b = run_tool(t, "yara", ["r.yar"], runner=_fake_runner(b"hit"))
+    verdict = Verdict(verdict="CONFIRMED",
+                      cited_steps=[StepReference(step_id=a.step_id, stdout_hash=a.stdout_hash),
+                                   StepReference(step_id=b.step_id, stdout_hash=b.stdout_hash)],
+                      challenge_text="no stdout passed")
+    ruling = judge(verdict, _make_claim(a.step_id, a.stdout_hash), list(read(t.path)))
+    assert ruling.corroboration_strength == "unknown"
+
+
 # ===== Integration: CourtSession invokes Judge on CONFIRMED verdicts =====
 
 def test_session_downgrades_single_signal_confirmed(tmp_path: Path) -> None:

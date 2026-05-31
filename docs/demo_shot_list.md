@@ -1,5 +1,11 @@
 # Demo video shot list
 
+> ⚠️ **SUPERSEDED by [docs/demo_runbook.md](demo_runbook.md)** (2026-05-30). The
+> runbook is the canonical, current recording plan — it uses only reproducible,
+> non-withdrawn material (the real NIST 4/4 run + the deterministic JR-01 self-
+> correction). This older shot list is kept for reference but contains stale
+> numbers (e.g. `fp_planted = 0/20`, the seed-4004 framing) — do not record from it.
+
 Target: ≤5 minutes total (hackathon rules). Submission artifact #2.
 
 Required by the hackathon: **at least one unscripted self-correction moment** (Autonomous Execution Quality tiebreaker). We satisfy this with the seed-4004 → corroboration-rule story, reproducible from committed sweep data. (The earlier "Court-on-NIST 45.9% → 95.08%" trajectory is withdrawn — it was driven by prompt-injected answer hints, not forensic improvement; do not show it.)
@@ -46,7 +52,7 @@ The remaining moments are reproducible from committed artifacts and are sufficie
 >
 > Now watch the safeguard layer catch a planted artifact. The Defender confirmed it. The deterministic Judge — a Python function, not an LLM — downgrades the verdict to CONTESTED because the Defender cited only one tool and the corroboration rule lives in code.
 >
-> The strongest visible competitor scores 100% F1 on the canonical NIST Hacking Case. We independently re-ran their pipeline under the hackathon's actual LLM constraint — DeepSeek instead of Gemma, Ubuntu instead of SIFT. Their pipeline scores zero percent. Ours scores ninety-five.
+> The strongest visible competitor self-reports 100% F1 on the canonical NIST Hacking Case. We independently re-ran their pipeline under the hackathon's actual LLM constraint — DeepSeek instead of Gemma, Ubuntu instead of SIFT — and it scored zero percent. We do NOT counter with a flashy Hexbreaker NIST number: an earlier 95% came from prompt-injected answers and is withdrawn. Instead we show what's reproducible right here — Forge generating unseen cases and the Court rejecting a planted artifact in code.
 >
 > The transcript verifies with HMAC. Every safeguard is in code. The full repo is at github.com/Alexander-Sorrell-IT/hexbreaker."
 

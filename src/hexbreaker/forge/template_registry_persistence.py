@@ -84,8 +84,8 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
         decoys.append((name, path, ts))
 
     # Provocateur plants: legit-named values pointing at user-writable locations
-    # that LOOK persistence-like but have no yara confirmation. Defender must
-    # require both signals.
+    # that LOOK persistence-like but have no corroborating Sysmon RegistryEvent.
+    # Defender must require both signals.
     planted: list[tuple[str, str]] = []
     if provocateur:
         unused_evil = [(n, p) for n, p in EVIL_BINARIES if n != evil_value]
@@ -108,19 +108,30 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     rng.shuffle(rows)
     recmd_csv = (header + "".join(rows)).encode()
 
-    # Yara hit on the evil binary only.
-    yara_hit = f"{evil_path}: APT_PERSISTENCE_HEURISTIC\n".encode()
+    # Corroborator: a Sysmon EventID-13 RegistryEvent (Value Set) whose
+    # TargetObject is the SAME full Run key as the accused target. This names the
+    # target (the registry key) directly — unlike a yara hit, which would only
+    # name the launched binary, never the key. Only the evil entry has a
+    # corroborating event; decoys and any plant do NOT (no second-tool signal on
+    # the key), so genuine per-target corroboration (RECmd value name + EvtxECmd
+    # TargetObject) distinguishes the true finding under JR-01/JR-01b.
+    evtx_header = "EventId,EventType,UtcTime,Image,TargetObject,Details\n"
+    evtx_rows = (
+        f"13,SetValue,{_iso(evil_last_write)},{evil_path},{evil_target},"
+        f"REG_SZ {evil_path}\n"
+    )
+    evtx_out = (evtx_header + evtx_rows).encode()
 
     (out / "mock_outputs" / "recmd_run.csv").write_bytes(recmd_csv)
-    (out / "mock_outputs" / "yara.txt").write_bytes(yara_hit)
+    (out / "mock_outputs" / "sysmon_registry.csv").write_bytes(evtx_out)
 
     recmd_call = ToolInvocation(
         tool="RECmd",
         args=["-f", "/case/hives/SOFTWARE", "--kn", "Microsoft\\Windows\\CurrentVersion\\Run"],
     )
-    yara_call = ToolInvocation(
-        tool="yara",
-        args=["/case/rules/persistence.yar", evil_path],
+    evtx_call = ToolInvocation(
+        tool="EvtxECmd",
+        args=["-f", "/case/Microsoft-Windows-Sysmon%4Operational.evtx", "--csv", "/case/out"],
     )
 
     manifest = CaseManifest(
@@ -132,14 +143,14 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
             f"{RUN_KEY_PATH}. One ({evil_value} -> {evil_path}) is malicious "
             f"persistence in a user-writable path; {n_decoys} are legitimate; "
             f"{len(planted)} provocateur plants point at user-writable locations "
-            f"without yara confirmation. Expected finding: persistence on {evil_target}."
+            f"without a corroborating Sysmon RegistryEvent. Expected finding: persistence on {evil_target}."
         ),
         pre_pass_steps=[recmd_call],
-        defender_steps=[yara_call],
-        allowed_tools=["RECmd", "yara"],
+        defender_steps=[evtx_call],
+        allowed_tools=["RECmd", "EvtxECmd"],
         mock_outputs={
             recmd_call.key: "mock_outputs/recmd_run.csv",
-            yara_call.key: "mock_outputs/yara.txt",
+            evtx_call.key: "mock_outputs/sysmon_registry.csv",
         },
     )
 
@@ -168,7 +179,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
                 artifact_kind="persistence",
                 target=f"{RUN_KEY_PATH}\\{name}",
                 must_have_verdict="REJECTED",
-                note=f"planted: Run entry pointing at user-writable path {path} but NO yara confirmation",
+                note=f"planted: Run entry pointing at user-writable path {path} but NO corroborating Sysmon RegistryEvent",
             )
             for name, path in planted
         ],

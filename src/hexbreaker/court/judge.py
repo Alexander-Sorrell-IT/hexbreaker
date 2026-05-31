@@ -27,6 +27,7 @@ Future rules (queued, not landed):
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Callable
 
@@ -49,6 +50,12 @@ class JudgeRuling(BaseModel):
     rule_id: str | None = None
     reason: str
     distinct_tools_cited: list[str] = []  # debug: which tools the Verdict cited
+    # JR-01b corroboration AUDIT (report-only — never changes verdict_kind):
+    #   "strong"            = >=2 distinct cited tool kinds each name the target/leaf
+    #   "single_identifier" = only one cited tool names it (e.g. cross-identifier
+    #                         corroboration: recycle-bin slot->path, Run key->binary)
+    #   "unknown"           = cited tools' stdout not supplied to judge()
+    corroboration_strength: str = "unknown"
 
 
 Rule = Callable[[Verdict, Claim, dict[str, StepRecord]], "JudgeRuling | None"]
@@ -142,9 +149,52 @@ def jr_01_corroboration(
     )
 
 
+def jr_01b_corroboration_strength(
+    verdict: Verdict,
+    claim: Claim,
+    records_by_id: dict[str, StepRecord],
+    tool_stdout: dict[str, str],
+) -> str:
+    """REPORT-ONLY audit of per-target corroboration strength. NEVER downgrades.
+
+    Closes audit finding F-1/M-1 the integrity way: instead of pretending the
+    structural-vs-semantic gap is gone, we MEASURE and disclose it per finding.
+
+    A genuine downgrade rule is impossible here without lying: real DFIR evidence
+    routinely corroborates a target CROSS-IDENTIFIER — the recycle-bin INFO2 maps a
+    deleted slot (Dc7) to the original path while `fls` names only the slot; a Run
+    key is corroborated by a Sysmon event or the launched binary, not a second tool
+    naming the key verbatim. Demanding two tools name the SAME string would
+    false-downgrade these genuine findings (proven by replay: it would have nuked
+    the real NIST 4/4). So this is an annotation, not an enforcement.
+
+    Returns:
+      "strong"            if >=2 distinct cited tool kinds each name the target/leaf
+      "single_identifier" if exactly one cited tool names it (cross-identifier case)
+    Leaf = the target's last path/key component (basename, Run value name, URL leaf),
+    since tools commonly name the artifact by its leaf, not the contiguous full path.
+    """
+    if verdict.verdict != "CONFIRMED":
+        return "strong"  # only CONFIRMED findings are audited; non-confirms are moot
+    target = claim.target
+    leaf = re.split(r"[\\/]", target)[-1] if target else ""
+    naming_kinds: set[str] = set()
+    for ref in verdict.cited_steps:
+        rec = records_by_id.get(ref.step_id)
+        if rec is None or rec.kind != Kind.TOOL_CALL:
+            continue
+        stdout = tool_stdout.get(ref.step_id, "")
+        if target and (target in stdout or (leaf and leaf in stdout)):
+            tool = rec.content.get("tool")
+            if isinstance(tool, str):
+                naming_kinds.add(tool)
+    return "strong" if len(naming_kinds) >= 2 else "single_identifier"
+
+
 # Rule registry. Order is significant — the first downgrade wins. JR-02 fires
 # first (prompt-injection leak is a stronger signal than mere single-tool
-# corroboration), then JR-01.
+# corroboration), then JR-01. JR-01b runs after these in judge() because it needs
+# the cited tools' stdout (not in the generic Rule signature).
 RULES: list[Rule] = [
     jr_02_provocation_leak,
     jr_01_corroboration,
@@ -155,12 +205,27 @@ def judge(
     verdict: Verdict,
     claim: Claim,
     transcript_records: list[StepRecord],
+    *,
+    tool_stdout: dict[str, str] | None = None,
 ) -> JudgeRuling:
-    """Run all rules. Return the first downgrade, or UPHELD if none fire."""
+    """Run all rules. Return the first downgrade, or UPHELD if none fire.
+
+    `tool_stdout` (step_id -> cited tool output) enables JR-01b per-target
+    relevance. The wired CourtSession.submit_verdict always provides it; when it
+    is None (pure-logic unit tests of other rules) JR-01b is skipped.
+    """
     records_by_id = {r.step_id: r for r in transcript_records}
+    # JR-01b report-only audit (never changes the verdict; "unknown" if stdout
+    # wasn't supplied, e.g. pure-logic unit tests of other rules).
+    strength = (
+        jr_01b_corroboration_strength(verdict, claim, records_by_id, tool_stdout)
+        if tool_stdout is not None
+        else "unknown"
+    )
     for rule in RULES:
         ruling = rule(verdict, claim, records_by_id)
         if ruling is not None and ruling.kind == RulingKind.DOWNGRADED:
+            ruling.corroboration_strength = strength
             return ruling
     distinct_tools: list[str] = []
     for ref in verdict.cited_steps:
@@ -175,4 +240,5 @@ def judge(
         rule_id=None,
         reason="all rules upheld",
         distinct_tools_cited=sorted(distinct_tools),
+        corroboration_strength=strength,
     )
