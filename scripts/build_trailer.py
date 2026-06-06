@@ -1,401 +1,367 @@
-"""Build a COOL ANIMATED TRAILER for Hexbreaker — nothing fabricated.
+"""Build the Hexbreaker TRAILER — VOICE-READY (no baked narration), nothing fabricated.
 
-Every frame is backed by something real:
-  - TERMINAL segments are genuine `asciinema` captures of the actual tool running
-    (rendered with `agg`) — real commands, real output, no re-typing.
-  - CARD segments (intro / stats / close) are PIL motion-graphics, but every NUMBER
-    shown is a real, committed, verifiable figure (4/4 signed NIST, F1 0.95-0.975,
-    0/80 baits, 169 tests, 6 templates, chain+HMAC). No invented metrics, no
-    AI-generated "b-roll" implying capabilities we don't have.
-  - Narration is free neural TTS (edge-tts) reading honest, evidence-backed lines.
+Design (see docs/trailer_vo_script.md for the timed VO lines to record over it):
+  - NO baked voice. Visuals + sparse on-screen punch-words carry the story muted; a
+    low music bed sits under it with headroom for Alex's voiceover overlay.
+  - Cold-open is SYMBOLIC of the field's hallucination problem (a confident check
+    that flips to a red X) — clearly generic, not a fake Hexbreaker output.
+  - PROOF cuts are the REAL terminal (reused asciinema captures): the self-correction
+    CONFIRMED->CONTESTED beat and `hexbreaker verify --hmac` of the committed signed
+    NIST 4/4. Stat wall shows only real committed numbers.
 
-This is a PROMO trailer. The hackathon's required artifact #2 is a plain live-terminal
-screencast (rules: "Not marketing videos") — see docs/demo_runbook.md / build_screencast_demo.py.
-
-Deps (all free): asciinema, agg (AGG_BIN=/tmp/agg), edge-tts, ffmpeg, Pillow.
-Run from repo root:
-    AGG_BIN=/tmp/agg python scripts/build_trailer.py --out docs/trailer.mp4
+Free tools: agg (AGG_BIN=/tmp/agg), ffmpeg, Pillow, numpy (music synth).
+    AGG_BIN=/tmp/agg python3 scripts/build_trailer.py --out docs/trailer.mp4
 """
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import subprocess
+import wave
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-OUT_DIR = Path("/tmp/trailer_build")
-PW = os.environ.get("HEXBREAKER_HMAC_PASSWORD", "hexbreaker-nist-fsm")
+OUT = Path("/tmp/trailer2_build")
 AGG = os.environ.get("AGG_BIN", "agg")
-VOICE = "en-US-AndrewNeural"
+PW = os.environ.get("HEXBREAKER_HMAC_PASSWORD", "hexbreaker-nist-fsm")
 W, H, FPS = 1280, 720, 30
 COLS, ROWS = 100, 26
 
-# Palette (dracula-ish, matches the agg terminal theme)
-BG = (17, 19, 28)
+BG = (12, 14, 22)
 FG = (248, 248, 242)
-DIM = (98, 114, 164)
+DIM = (120, 134, 170)
 CYAN = (139, 233, 253)
 GREEN = (80, 250, 123)
 PURPLE = (189, 147, 249)
-RED = (255, 85, 85)
+RED = (255, 85, 95)
 YELLOW = (241, 250, 140)
+FD = "/usr/share/fonts/truetype/dejavu"
 
-FONT_DIR = "/usr/share/fonts/truetype/dejavu"
 
-
-def font(name: str, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(f"{FONT_DIR}/{name}", size)
+def font(name, size):
+    return ImageFont.truetype(f"{FD}/{name}", size)
 
 
 def run(cmd, **kw):
     return subprocess.run(cmd, check=True, **kw)
 
 
-def ease(t: float) -> float:
-    """smoothstep 0..1"""
-    t = max(0.0, min(1.0, t))
-    return t * t * (3 - 2 * t)
+def ease(x):
+    x = max(0.0, min(1.0, x))
+    return x * x * (3 - 2 * x)
 
 
-def _bg(draw: ImageDraw.ImageDraw, frame: int):
-    """Subtle animated backdrop: a slowly drifting dim dot-grid + vignette feel."""
-    draw.rectangle([0, 0, W, H], fill=BG)
-    step = 44
-    off = (frame * 0.6) % step
+def bg(dr, i, base=BG):
+    dr.rectangle([0, 0, W, H], fill=base)
+    step = 46
+    off = (i * 0.5) % step
     for y in range(-step, H + step, step):
         for x in range(-step, W + step, step):
-            px = x + off
-            py = y + off * 0.5
-            # twinkle by position+frame
-            tw = (math.sin((x + y) * 0.05 + frame * 0.06) + 1) / 2
-            c = int(28 + tw * 26)
-            draw.ellipse([px, py, px + 2, py + 2], fill=(c, c + 4, c + 12))
+            tw = (np.sin((x + y) * 0.04 + i * 0.05) + 1) / 2
+            c = int(20 + tw * 20)
+            dr.ellipse([x + off, y + off * 0.5, x + off + 2, y + off * 0.5 + 2],
+                       fill=(c, c + 3, c + 10))
 
 
-def _frame_dir(seg: str) -> Path:
-    d = OUT_DIR / seg / "frames"
+def ctext(dr, cx, cy, text, fnt, fill, a=255):
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+    bb = ld.textbbox((0, 0), text, font=fnt)
+    ld.text((cx - (bb[2] - bb[0]) // 2 - bb[0], cy - (bb[3] - bb[1]) // 2 - bb[1]),
+            text, font=fnt, fill=(fill[0], fill[1], fill[2], int(a)))
+    return layer
+
+
+def fdir(seg):
+    d = OUT / seg
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def render_intro(seg: str, secs: float = 4.0) -> Path:
-    """Animated title card: HEXBREAKER + tagline, kinetic entrance."""
-    d = _frame_dir(seg)
+def frames_to_clip(seg, render_fn, secs):
+    d = fdir(seg)
     n = int(secs * FPS)
-    f_title = font("DejaVuSans-Bold.ttf", 96)
-    f_tag = font("DejaVuSans.ttf", 34)
-    f_small = font("DejaVuSansMono.ttf", 22)
     for i in range(n):
-        img = Image.new("RGB", (W, H), BG)
-        dr = ImageDraw.Draw(img)
-        _bg(dr, i)
-        # title slides up + fades in over first 1.2s
-        a = ease(i / (FPS * 1.2))
-        dy = int((1 - a) * 40)
-        title = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        td = ImageDraw.Draw(title)
-        bbox = td.textbbox((0, 0), "HEXBREAKER", font=f_title)
-        tw = bbox[2] - bbox[0]
-        tx = (W - tw) // 2 - bbox[0]
-        td.text((tx, H // 2 - 90 + dy), "HEXBREAKER", font=f_title,
-                fill=(CYAN[0], CYAN[1], CYAN[2], int(255 * a)))
-        img.paste(title, (0, 0), title)
-        # accent underline grows
-        uw = int(tw * ease((i - FPS * 0.6) / (FPS * 1.0)))
-        if uw > 0:
-            ux = (W - uw) // 2
-            dr.rectangle([ux, H // 2 + 6, ux + uw, H // 2 + 12], fill=PURPLE)
-        # tagline fades in after 1.4s
-        a2 = ease((i - FPS * 1.4) / (FPS * 1.2))
-        if a2 > 0:
-            tag = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            gd = ImageDraw.Draw(tag)
-            msg = "An AI forensic agent built to be caught when it's wrong."
-            bb = gd.textbbox((0, 0), msg, font=f_tag)
-            gx = (W - (bb[2] - bb[0])) // 2 - bb[0]
-            gd.text((gx, H // 2 + 40), msg, font=f_tag,
-                    fill=(FG[0], FG[1], FG[2], int(230 * a2)))
-            img.paste(tag, (0, 0), tag)
-        # footer
-        a3 = ease((i - FPS * 2.2) / (FPS * 1.0))
-        if a3 > 0:
-            ft = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            fd = ImageDraw.Draw(ft)
-            msg = "SANS Find Evil! 2026  ·  generative DFIR benchmark + adversarial Court"
-            bb = fd.textbbox((0, 0), msg, font=f_small)
-            fx = (W - (bb[2] - bb[0])) // 2 - bb[0]
-            fd.text((fx, H - 70), msg, font=f_small,
-                    fill=(DIM[0], DIM[1], DIM[2], int(220 * a3)))
-            img.paste(ft, (0, 0), ft)
-        img.save(d / f"{i:04d}.png")
-    return d
+        render_fn(i, n).save(d / f"{i:04d}.png")
+    out = OUT / f"{seg}.mp4"
+    run(["ffmpeg", "-y", "-framerate", str(FPS), "-i", str(d / "%04d.png"),
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS), str(out)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return out, secs
 
 
-def render_line(seg: str, lines, secs: float = 4.0, accent=CYAN) -> Path:
-    """A statement card: 1-2 big lines, typed/faded in. Used for 'the problem'."""
-    d = _frame_dir(seg)
-    n = int(secs * FPS)
-    f_big = font("DejaVuSans-Bold.ttf", 52)
-    for i in range(n):
+# ---------- segments ----------
+def seg_coldopen(secs=8.0):
+    f_big = font("DejaVuSans-Bold.ttf", 58)
+    f_cap = font("DejaVuSans.ttf", 34)
+    f_mono = font("DejaVuSansMono.ttf", 30)
+
+    def draw_mark(img, cx, cy, kind, col, a):
+        ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        d = ImageDraw.Draw(ov)
+        r = 46
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(col[0], col[1], col[2], a), width=6)
+        if kind == "check":
+            d.line([(cx - 22, cy + 2), (cx - 6, cy + 20), (cx + 24, cy - 20)],
+                   fill=(col[0], col[1], col[2], a), width=8, joint="curve")
+        else:
+            d.line([(cx - 20, cy - 20), (cx + 20, cy + 20)], fill=(col[0], col[1], col[2], a), width=8)
+            d.line([(cx - 20, cy + 20), (cx + 20, cy - 20)], fill=(col[0], col[1], col[2], a), width=8)
+        img.paste(ov, (0, 0), ov)
+
+    def render(i, n):
+        t = i / FPS
         img = Image.new("RGB", (W, H), BG)
         dr = ImageDraw.Draw(img)
-        _bg(dr, i)
-        # accent bar on the left
-        dr.rectangle([90, H // 2 - 90, 98, H // 2 + 90], fill=accent)
-        y = H // 2 - len(lines) * 38
-        for li, ln in enumerate(lines):
-            a = ease((i - li * FPS * 0.5) / (FPS * 0.9))
+        bg(dr, i)
+        flip = 3.4  # second the verdict flips to wrong
+        wrong = t >= flip
+        # the "confident finding" line
+        a1 = int(255 * ease(t / 0.8))
+        line = "FINDING:  malware.exe  —  CONFIRMED"
+        col = RED if wrong else GREEN
+        # glitch around the flip
+        gx = 0
+        if abs(t - flip) < 0.5:
+            gx = int(np.random.randint(-14, 14))
+        img.paste(ctext(dr, W // 2 + gx, H // 2 - 30, line, f_mono, col, a1),
+                  (0, 0), ctext(dr, W // 2 + gx, H // 2 - 30, line, f_mono, col, a1))
+        draw_mark(img, W // 2 - 330, H // 2 - 30, "cross" if wrong else "check", col, a1)
+        if wrong:
+            aw = int(255 * ease((t - flip) / 0.5))
+            img.paste(ctext(dr, W // 2, H // 2 + 36, "...except it was never there.", f_cap, RED, aw),
+                      (0, 0), ctext(dr, W // 2, H // 2 + 36, "...except it was never there.", f_cap, RED, aw))
+        # caption
+        ac = int(230 * ease((t - flip - 0.6) / 0.8)) if t > flip + 0.6 else 0
+        if ac > 0:
+            img.paste(ctext(dr, W // 2, H - 90, "AI forensics has a trust problem.", f_big, FG, ac),
+                      (0, 0), ctext(dr, W // 2, H - 90, "AI forensics has a trust problem.", f_big, FG, ac))
+        return img
+    return frames_to_clip("01_coldopen", render, secs)
+
+
+def seg_lines(seg, lines, secs, accent=RED):
+    f = font("DejaVuSans-Bold.ttf", 56)
+
+    def render(i, n):
+        t = i / FPS
+        img = Image.new("RGB", (W, H), BG)
+        dr = ImageDraw.Draw(img)
+        bg(dr, i)
+        dr.rectangle([95, H // 2 - 95, 103, H // 2 + 95], fill=accent)
+        y0 = H // 2 - len(lines) * 42
+        for li, (txt, col) in enumerate(lines):
+            a = ease((t - li * 0.55) / 0.8)
             if a <= 0:
                 continue
-            layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            ld = ImageDraw.Draw(layer)
-            col = accent if ln.startswith("*") else FG
-            txt = ln.lstrip("*")
-            ld.text((130, y + li * 76), txt, font=f_big,
-                    fill=(col[0], col[1], col[2], int(255 * a)))
-            img.paste(layer, (0, 0), layer)
-        img.save(d / f"{i:04d}.png")
-    return d
+            lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            ld = ImageDraw.Draw(lay)
+            ld.text((135, y0 + li * 84), txt, font=f, fill=(col[0], col[1], col[2], int(255 * a)))
+            img.paste(lay, (0, 0), lay)
+        return img
+    return frames_to_clip(seg, render, secs)
 
 
-def render_stats(seg: str, stats, secs: float = 6.0) -> Path:
-    """Animated stat grid; each stat pops in sequentially, numbers count up where numeric."""
-    d = _frame_dir(seg)
-    n = int(secs * FPS)
-    f_num = font("DejaVuSans-Bold.ttf", 64)
-    f_lab = font("DejaVuSansMono.ttf", 22)
-    f_head = font("DejaVuSans-Bold.ttf", 40)
-    cols = 3
-    cw, ch = W // cols, 200
-    grid_top = 210
-    for i in range(n):
+def seg_turn(secs=5.0):
+    f_q = font("DejaVuSans-Bold.ttf", 46)
+    f_t = font("DejaVuSans-Bold.ttf", 104)
+
+    def render(i, n):
+        t = i / FPS
         img = Image.new("RGB", (W, H), BG)
         dr = ImageDraw.Draw(img)
-        _bg(dr, i)
-        # header
-        ah = ease(i / (FPS * 0.8))
-        if ah > 0:
-            layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            ld = ImageDraw.Draw(layer)
-            msg = "Every number here is committed + verifiable"
-            bb = ld.textbbox((0, 0), msg, font=f_head)
-            ld.text(((W - (bb[2] - bb[0])) // 2 - bb[0], 90), msg, font=f_head,
-                    fill=(FG[0], FG[1], FG[2], int(255 * ah)))
-            img.paste(layer, (0, 0), layer)
+        bg(dr, i)
+        aq = ease(t / 0.8) * (1 - ease((t - 2.4) / 0.6))
+        if aq > 0:
+            img.paste(ctext(dr, W // 2, H // 2 - 80, "What if it were built to catch itself?",
+                            f_q, FG, int(255 * aq)), (0, 0),
+                      ctext(dr, W // 2, H // 2 - 80, "What if it were built to catch itself?",
+                            f_q, FG, int(255 * aq)))
+        at = ease((t - 2.4) / 1.0)
+        if at > 0:
+            dy = int((1 - at) * 30)
+            img.paste(ctext(dr, W // 2, H // 2 + 20 + dy, "HEXBREAKER", f_t, CYAN, int(255 * at)),
+                      (0, 0), ctext(dr, W // 2, H // 2 + 20 + dy, "HEXBREAKER", f_t, CYAN, int(255 * at)))
+            uw = int(560 * at)
+            dr.rectangle([W // 2 - uw // 2, H // 2 + 78, W // 2 + uw // 2, H // 2 + 84], fill=PURPLE)
+        return img
+    return frames_to_clip("03_turn", render, secs)
+
+
+def proof_cut(seg, cast, title, caption, accent, secs, speed=1.7):
+    d = fdir(seg)
+    gif = d / "t.gif"
+    run([AGG, "--cols", str(COLS), "--rows", str(ROWS), "--theme", "dracula",
+         "--font-size", "20", str(cast), str(gif)])
+    # backdrop with title + caption baked
+    back = d / "back.png"
+    img = Image.new("RGB", (W, H), BG)
+    dr = ImageDraw.Draw(img)
+    bg(dr, 0)
+    dr.rectangle([60, 70, W - 60, 118], fill=(22, 25, 36))
+    dr.rectangle([60, 70, 68, 118], fill=accent)
+    dr.text((90, 82), title, font=font("DejaVuSansMono.ttf", 24), fill=accent)
+    cb = font("DejaVuSans-Bold.ttf", 40)
+    bb = dr.textbbox((0, 0), caption, font=cb)
+    dr.text(((W - (bb[2] - bb[0])) // 2, H - 92), caption, font=cb, fill=FG)
+    img.save(back)
+    out = OUT / f"{seg}.mp4"
+    # speed up the terminal, fit into a window region, overlay on backdrop, hold to secs
+    run(["ffmpeg", "-y", "-loop", "1", "-i", str(back), "-i", str(gif),
+         "-filter_complex",
+         f"[1:v]setpts=PTS/{speed},scale=1100:470:force_original_aspect_ratio=decrease:flags=lanczos[t];"
+         f"[0:v][t]overlay=(W-w)/2:150:eof_action=repeat:shortest=0[v];"
+         f"[v]trim=0:{secs}[vv]",
+         "-map", "[vv]", "-t", f"{secs}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-r", str(FPS), str(out)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return out, secs
+
+
+def seg_stats(secs=8.0):
+    stats = [("4 / 4", "NIST tools recovered (signed)", GREEN),
+             ("0 / 80", "baits taken under attack", CYAN),
+             ("0.95-0.975", "Forge F1 (normal)", PURPLE),
+             ("169", "tests passing", FG),
+             ("6", "artifact templates", YELLOW),
+             ("100%", "chain + HMAC verified", GREEN)]
+    f_n = font("DejaVuSans-Bold.ttf", 60)
+    f_l = font("DejaVuSansMono.ttf", 21)
+    f_h = font("DejaVuSans-Bold.ttf", 38)
+    cols = 3
+
+    def render(i, n):
+        t = i / FPS
+        img = Image.new("RGB", (W, H), BG)
+        dr = ImageDraw.Draw(img)
+        bg(dr, i)
+        ah = ease(t / 0.7)
+        img.paste(ctext(dr, W // 2, 95, "Every number, committed + verifiable.", f_h, FG, int(255 * ah)),
+                  (0, 0), ctext(dr, W // 2, 95, "Every number, committed + verifiable.", f_h, FG, int(255 * ah)))
         for si, (num, lab, col) in enumerate(stats):
             r, c = si // cols, si % cols
-            cx = c * cw + cw // 2
-            cy = grid_top + r * ch + ch // 2
-            a = ease((i - (si * FPS * 0.45 + FPS * 0.6)) / (FPS * 0.7))
+            cx = c * (W // cols) + W // cols // 2
+            cy = 250 + r * 190
+            a = ease((t - (0.6 + si * 0.4)) / 0.6)
             if a <= 0:
                 continue
-            layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            ld = ImageDraw.Draw(layer)
-            bb = ld.textbbox((0, 0), num, font=f_num)
-            ld.text((cx - (bb[2] - bb[0]) // 2 - bb[0], cy - 56), num, font=f_num,
-                    fill=(col[0], col[1], col[2], int(255 * a)))
-            bb2 = ld.textbbox((0, 0), lab, font=f_lab)
-            ld.text((cx - (bb2[2] - bb2[0]) // 2 - bb2[0], cy + 18), lab, font=f_lab,
-                    fill=(DIM[0], DIM[1], DIM[2], int(255 * a)))
-            img.paste(layer, (0, 0), layer)
-        img.save(d / f"{i:04d}.png")
-    return d
+            img.paste(ctext(dr, cx, cy, num, f_n, col, int(255 * a)), (0, 0),
+                      ctext(dr, cx, cy, num, f_n, col, int(255 * a)))
+            img.paste(ctext(dr, cx, cy + 52, lab, f_l, DIM, int(255 * a)), (0, 0),
+                      ctext(dr, cx, cy + 52, lab, f_l, DIM, int(255 * a)))
+        return img
+    return frames_to_clip("06_stats", render, secs)
 
 
-def render_close(seg: str, secs: float = 4.5) -> Path:
-    d = _frame_dir(seg)
-    n = int(secs * FPS)
-    f_big = font("DejaVuSans-Bold.ttf", 80)
-    f_url = font("DejaVuSansMono.ttf", 30)
-    for i in range(n):
+def seg_close(secs=6.0):
+    f_b = font("DejaVuSans-Bold.ttf", 88)
+    f_u = font("DejaVuSansMono.ttf", 30)
+    f_s = font("DejaVuSans.ttf", 26)
+
+    def render(i, n):
+        t = i / FPS
         img = Image.new("RGB", (W, H), BG)
         dr = ImageDraw.Draw(img)
-        _bg(dr, i)
-        a = ease(i / (FPS * 1.0))
-        layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        ld = ImageDraw.Draw(layer)
-        msg = "Miss, don't lie."
-        bb = ld.textbbox((0, 0), msg, font=f_big)
-        ld.text(((W - (bb[2] - bb[0])) // 2 - bb[0], H // 2 - 90), msg, font=f_big,
-                fill=(GREEN[0], GREEN[1], GREEN[2], int(255 * a)))
-        img.paste(layer, (0, 0), layer)
-        a2 = ease((i - FPS * 1.2) / (FPS * 1.0))
+        bg(dr, i)
+        a = ease(t / 0.9)
+        img.paste(ctext(dr, W // 2, H // 2 - 70, "Miss, don't lie.", f_b, GREEN, int(255 * a)),
+                  (0, 0), ctext(dr, W // 2, H // 2 - 70, "Miss, don't lie.", f_b, GREEN, int(255 * a)))
+        a2 = ease((t - 1.1) / 0.9)
         if a2 > 0:
-            layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-            ld = ImageDraw.Draw(layer)
-            url = "github.com/Alexander-Sorrell-IT/hexbreaker"
-            bb = ld.textbbox((0, 0), url, font=f_url)
-            ld.text(((W - (bb[2] - bb[0])) // 2 - bb[0], H // 2 + 30), url, font=f_url,
-                    fill=(CYAN[0], CYAN[1], CYAN[2], int(240 * a2)))
-            img.paste(layer, (0, 0), layer)
-        img.save(d / f"{i:04d}.png")
-    return d
+            img.paste(ctext(dr, W // 2, H // 2 + 30, "HEXBREAKER", f_u, CYAN, int(255 * a2)),
+                      (0, 0), ctext(dr, W // 2, H // 2 + 30, "HEXBREAKER", f_u, CYAN, int(255 * a2)))
+            img.paste(ctext(dr, W // 2, H // 2 + 78, "github.com/Alexander-Sorrell-IT/hexbreaker",
+                            f_s, DIM, int(220 * a2)), (0, 0),
+                      ctext(dr, W // 2, H // 2 + 78, "github.com/Alexander-Sorrell-IT/hexbreaker",
+                            f_s, DIM, int(220 * a2)))
+        return img
+    return frames_to_clip("07_close", render, secs)
 
 
-def frames_to_video(frames_dir: Path, out: Path):
-    run(["ffmpeg", "-y", "-framerate", str(FPS), "-i", str(frames_dir / "%04d.png"),
-         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(FPS),
-         "-vf", f"scale={W}:{H}", str(out)],
+def make_music(total, out, turn_at):
+    sr = 44100
+    t = np.linspace(0, total, int(sr * total), endpoint=False)
+    sine = lambda f, a: a * np.sin(2 * np.pi * f * t)
+    drone = sine(55, 0.18) + sine(82.41, 0.12) + sine(110, 0.10) + sine(130.81, 0.07)
+    drone *= 0.6 + 0.4 * np.sin(2 * np.pi * 0.05 * t)
+    pulse = np.zeros_like(t)
+    k = 0
+    while k * 1.4 < total:
+        c = k * 1.4
+        env = np.exp(-np.maximum(t - c, 0) * 5) * (t >= c)
+        pulse += 0.22 * np.sin(2 * np.pi * 55 * t) * env
+        k += 1
+    riser = np.zeros_like(t)
+    mask = (t > turn_at - 1.8) & (t < turn_at)
+    rt = np.clip((t - (turn_at - 1.8)) / 1.8, 0, 1)
+    riser = np.where(mask, np.random.randn(len(t)) * 0.05 * rt, 0)
+    mix = drone + pulse + riser
+    mix /= np.max(np.abs(mix)) + 1e-9
+    mix *= 0.5  # headroom for the future voiceover overlay
+    fi, fo = int(sr * 1.0), int(sr * 1.5)
+    mix[:fi] *= np.linspace(0, 1, fi)
+    mix[-fo:] *= np.linspace(1, 0, fo)
+    w = wave.open(str(out), "w")
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+    w.writeframes((mix * 32767).astype("<i2").tobytes())
+    w.close()
+
+
+def xfade(clips, durs, out, trans=0.4):
+    inputs = []
+    for c in clips:
+        inputs += ["-i", str(c)]
+    fc = []
+    prev = "0:v"
+    cum = durs[0]
+    for i in range(1, len(clips)):
+        off = cum - trans
+        lab = f"v{i}"
+        fc.append(f"[{prev}][{i}:v]xfade=transition=fade:duration={trans}:offset={off:.3f}[{lab}]")
+        prev = lab
+        cum += durs[i] - trans
+    run(["ffmpeg", "-y", *inputs, "-filter_complex", ";".join(fc),
+         "-map", f"[{prev}]", "-r", str(FPS), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def terminal_video(seg: str, script: str, out: Path):
-    """Record REAL terminal session -> agg render -> 1280x720 padded video (no audio)."""
-    d = OUT_DIR / seg
-    d.mkdir(parents=True, exist_ok=True)
-    cast = d / "rec.cast"
-    sh = d / "run.sh"
-    # Activate the repo venv BEFORE `clear` so it scrolls off-screen; this makes
-    # `hexbreaker`/`python` resolve to the repo's env (not a PATH-polluted one).
-    sh.write_text("#!/usr/bin/env bash\nset -e\nsource .venv/bin/activate 2>/dev/null\n" + script)
-    sh.chmod(0o755)
-    env = dict(os.environ, HEXBREAKER_HMAC_PASSWORD=PW, PYTHONPATH="src")
-    run(["asciinema", "rec", "--overwrite", "--cols", str(COLS), "--rows", str(ROWS),
-         "-c", f"bash {sh}", str(cast)], env=env)
-    gif = d / "rec.gif"
-    run([AGG, "--cols", str(COLS), "--rows", str(ROWS), "--theme", "dracula",
-         "--font-size", "18", str(cast), str(gif)])
-    # gif -> padded 1280x720 on the dark bg, fit width
-    run(["ffmpeg", "-y", "-i", str(gif),
-         "-vf", f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos,"
-                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:0x11131c,format=yuv420p,fps={FPS}",
-         "-c:v", "libx264", str(out)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def tts(text: str, out: Path) -> float:
-    run(["python3", "-m", "edge_tts", "--voice", VOICE, "--text", text,
-         "--write-media", str(out)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return float(subprocess.check_output(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", str(out)]).decode().strip())
-
-
-def fit_segment(seg: str, base_video: Path, narration: str, out: Path, *, pad_tail=0.6):
-    """Pad/extend base video to narration length (freeze last frame), mux VO, fade edges."""
-    d = OUT_DIR / seg
-    mp3 = d / "vo.mp3"
-    dur = tts(narration, mp3) + pad_tail if narration else 3.0
-    fin = 0.3
-    run(["ffmpeg", "-y", "-i", str(base_video), "-i", str(mp3),
-         "-filter_complex",
-         f"[0:v]tpad=stop_mode=clone:stop_duration={dur},fade=t=in:st=0:d={fin},"
-         f"fade=t=out:st={max(0.0,dur-0.4):.2f}:d=0.4[v];"
-         f"[1:a]adelay=120|120,afade=t=out:st={max(0.0,dur-0.5):.2f}:d=0.5[a]",
-         "-map", "[v]", "-map", "[a]", "-t", f"{dur:.2f}",
-         "-c:v", "libx264", "-c:a", "aac", "-ar", "48000", "-pix_fmt", "yuv420p",
-         "-r", str(FPS), str(out)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return out
+    return cum
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="docs/trailer.mp4")
-    ap.add_argument("--reuse-term", action="store_true", help="reuse existing terminal casts")
     args = ap.parse_args()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    OUT.mkdir(parents=True, exist_ok=True)
+    sc_cast = Path("/tmp/demo_build/03_selfcorrect/rec.cast")
+    nist_cast = Path("/tmp/demo_build/04_nist/rec.cast")
 
-    segments = []  # (seg_id, base_video_path, narration)
+    clips, durs = [], []
+    for c, dd in [
+        seg_coldopen(8.0),
+        seg_lines("02_stakes", [("A made-up finding isn't a miss.", FG),
+                                ("It's a false accusation.", RED)], 6.0),
+        seg_turn(5.0),
+        proof_cut("04_selfcorrect", sc_cast, "PROOF · runtime self-correction",
+                  "It caught itself — in code.", CYAN, 10.0),
+        proof_cut("05_nist", nist_cast, "PROOF · real NIST disk (.E01), signed",
+                  "Real disk. 4 / 4. Verified on screen.", GREEN, 10.0),
+        seg_stats(8.0),
+        seg_close(6.0),
+    ]:
+        clips.append(c)
+        durs.append(dd)
 
-    # 1) INTRO card
-    intro = OUT_DIR / "01_intro.mp4"
-    frames_to_video(render_intro("01_intro"), intro)
-    segments.append(("01_intro", intro,
-        "Hexbreaker. An AI forensic agent built to be caught when it's wrong."))
-
-    # 2) PROBLEM card
-    prob = OUT_DIR / "02_problem.mp4"
-    frames_to_video(render_line("02_problem",
-        ["Find Evil asks an AI to triage", "a seized disk image.",
-         "*The hard part isn't finding evil.", "*It's not inventing it."]), prob)
-    segments.append(("02_problem", prob,
-        "Find Evil asks an AI to triage a seized disk. The hard part isn't finding "
-        "evil. It's not inventing it."))
-
-    # 3) TERMINAL: self-correction (real, deterministic, no API)
-    sc = OUT_DIR / "03_selfcorrect.mp4"
-    terminal_video("03_selfcorrect",
-        "clear\n"
-        "echo '$ python scripts/demo_self_correction.py'\n"
-        "PYTHONPATH=src python scripts/demo_self_correction.py 2>&1 | "
-        "grep -E 'Defender|Judge final|Self-correction|reason|Findings emitted|Chain verify|HMAC verify|RESULT'\n"
-        "sleep 2\n", sc)
-    segments.append(("03_selfcorrect", sc,
-        "Watch the safeguard fire. The model confirms an artifact citing a single "
-        "tool. A deterministic Python judge overrides it in code, downgrades it to "
-        "contested, and emits nothing. The architecture stops the over-claim, and "
-        "records the correction in a signed transcript."))
-
-    # 4) TERMINAL: the committed, signed NIST 4/4 (real evidence, no API)
-    nist = OUT_DIR / "04_nist.mp4"
-    terminal_video("04_nist",
-        "clear\n"
-        "echo '$ hexbreaker verify --transcript samples/nist_fsm_run/run1/transcript.jsonl --hmac'\n"
-        "hexbreaker verify --transcript samples/nist_fsm_run/run1/transcript.jsonl --hmac\n"
-        "echo\n"
-        "echo '$ jq -r .findings[].target samples/nist_fsm_run/run1/findings.json'\n"
-        "python3 -c \"import json;[print('  CONFIRMED',f['target']) for f in json.load(open('samples/nist_fsm_run/run1/findings.json'))['findings']]\"\n"
-        "echo; echo '  real NIST .E01  ·  4 / 4 deleted tools recovered  ·  5/5 signed runs'\n"
-        "sleep 2\n", nist)
-    segments.append(("04_nist", nist,
-        "On the real NIST Hacking Case disk, the Court recovers all four of the "
-        "attacker's deleted tools. Four of four. Every step chained and H-M-A-C "
-        "signed. Five out of five signed runs. The recycle-bin question, one of "
-        "thirty-one, with no injected answers."))
-
-    # 5) STATS card (all real, committed)
-    stats = OUT_DIR / "05_stats.mp4"
-    frames_to_video(render_stats("05_stats", [
-        ("4/4", "NIST tools recovered (signed)", GREEN),
-        ("0 / 80", "baits taken under attack", CYAN),
-        ("0.95-0.975", "Forge F1 (normal)", PURPLE),
-        ("169", "tests passing", FG),
-        ("6", "artifact templates", YELLOW),
-        ("100%", "chain + HMAC verified", GREEN),
-    ]), stats)
-    segments.append(("05_stats", stats,
-        "Six artifact templates. A hundred sixty-nine tests. Forge F1 around point "
-        "nine five to point nine seven five. Zero of eighty baits taken under attack. "
-        "Every transcript chain and signature verified."))
-
-    # 6) CLOSE card
-    close = OUT_DIR / "06_close.mp4"
-    frames_to_video(render_close("06_close"), close)
-    segments.append(("06_close", close,
-        "Hexbreaker. Miss, don't lie."))
-
-    # fit each segment to its narration
-    fitted = []
-    for seg, vid, narr in segments:
-        f = OUT_DIR / f"{seg}.fit.mp4"
-        fit_segment(seg, vid, narr, f)
-        fitted.append(f)
-
-    # concat (demuxer — reliable; per-segment fades give smooth joins)
-    listf = OUT_DIR / "concat.txt"
-    listf.write_text("".join(f"file '{f}'\n" for f in fitted))
-    silent = OUT_DIR / "trailer.silent.mp4"
-    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(listf),
-         "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", str(silent)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    # subtle ambient music bed (procedural, copyright-free): low sine pad + soft noise
-    total = float(subprocess.check_output(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "csv=p=0", str(silent)]).decode().strip())
+    silent = OUT / "silent.mp4"
+    total = xfade(clips, durs, silent)
+    turn_at = durs[0] + durs[1] - 0.4 * 2 + 2.4  # ~ when HEXBREAKER forms
+    music = OUT / "music.wav"
+    make_music(total, music, turn_at)
     out = Path(args.out)
-    run(["ffmpeg", "-y", "-i", str(silent),
-         "-f", "lavfi", "-t", f"{total:.2f}",
-         "-i", "sine=frequency=110:sample_rate=48000,tremolo=f=0.2:d=0.4,volume=0.05",
-         "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.5[a]",
-         "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac",
-         "-movflags", "+faststart", str(out)],
+    run(["ffmpeg", "-y", "-i", str(silent), "-i", str(music),
+         "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+         "-shortest", "-movflags", "+faststart", str(out)],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print(f"TRAILER: {out}  ({total:.1f}s)")
+    print(f"TRAILER (voice-ready, no narration): {out}  ({total:.1f}s)")
 
 
 if __name__ == "__main__":
