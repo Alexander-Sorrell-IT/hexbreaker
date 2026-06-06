@@ -119,9 +119,12 @@ There is no path by which an LLM string becomes an arbitrary subprocess.
 The runner's one real recovery mechanism is the **retry-on-fabrication** loop,
 and it is bounded to a single retry per turn — not free-form replanning.
 
-The live model is known to fabricate `step_id`s on its first attempt (the smoke
-test on 2026-05-26 caught this; see `court/validator.py`'s module docstring).
-The runner handles it deterministically:
+In an early smoke test (2026-05-26) the live model fabricated `step_id`s on its
+first attempt — the validator caught V3 inventing `S-015` and R1 inventing `S-102`
+(see `court/validator.py`'s module docstring). That fabrication is **not reliably
+reproducible** run-to-run (DeepSeek is non-deterministic, and on recent runs the
+model cites cleanly), but the guard is built to catch it deterministically whenever
+it does occur:
 
 1. The Prosecutor (or Defender) emits a Claim/Verdict.
 2. The deterministic validator (`court/validator.py`) checks every cited
