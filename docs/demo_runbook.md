@@ -13,14 +13,20 @@ and (2) the **deterministic Judge self-correcting** a single-tool CONFIRM in cod
 ```bash
 cd hexbreaker
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[test,deepseek]"
-export DEEPSEEK_API_KEY=...            # your key
-export HEXBREAKER_HMAC_PASSWORD=demo   # so transcripts are signed on camera
+pip install -e ".[test,deepseek]"        # creates the `hexbreaker` command
+export DEEPSEEK_API_KEY=sk-...           # your (rotated) key
+export HEXBREAKER_HMAC_PASSWORD=demo-self-correction  # MUST match the committed
+                                         # sample's signing password (Beat 3b)
 # Confirm the NIST extracts are staged (the real-disk beat depends on them):
 ls /tmp/nist-extracts/      # expect fls_recycler.txt + INFO2
+# Smoke-check the CLI exists; if `hexbreaker` is ever "command not found",
+# substitute `PYTHONPATH=src python -m hexbreaker.cli` for `hexbreaker` in any beat.
+hexbreaker --help | head -1
 ```
 
 Have two terminals: one clean for recording, one scratch. Font ≥ 16pt.
+**Use a fresh output dir each take** (e.g. `D=/tmp/demo_$(date +%s)`) — never reuse
+`/tmp/case`, which may be left root-owned by an earlier Docker `-v` mount.
 
 ## Beat 1 — the problem (0:00–0:30, voice only over a clean prompt)
 
@@ -33,8 +39,9 @@ Have two terminals: one clean for recording, one scratch. Font ≥ 16pt.
 ## Beat 2 — Forge generates an unseen case (0:30–1:15)
 
 ```bash
-hexbreaker generate --seed 4729 --template timestomp --provocateur --out /tmp/case
-ls /tmp/case /tmp/case/mock_outputs
+D=/tmp/demo_$(date +%s)
+hexbreaker generate --seed 4729 --template timestomp --provocateur --out "$D"
+ls "$D" "$D/mock_outputs"
 ```
 
 > "One seed deterministically produces a full case: tool outputs, an answer key,
@@ -80,6 +87,13 @@ Narrate the summary it prints:
 > one of roughly thirty-one in the full case, reported as kind 'other'. No injected
 > answers — an earlier ninety-five-percent number that came from prompt-injected
 > hints is withdrawn. This is the genuine agent on genuine evidence."
+
+> **Evidence of record:** this beat reproduces [`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md)
+> — 5/5 committed runs each scored 4/4, chain+HMAC verified, E01 SHA256 matches the
+> docs. DeepSeek is non-deterministic: if a live take confirms fewer than 4, **re-take**
+> (the committed evidence is 5/5 at 4/4) or **narrate the number you actually see** —
+> never say "four of four" over a take that wasn't. Stage the extracts first with the
+> mount/extract commands in the SUMMARY (`ewfmount` → `fls` → `icat 11850`).
 
 ## Beat 5 — the honesty close (4:15–4:50)
 

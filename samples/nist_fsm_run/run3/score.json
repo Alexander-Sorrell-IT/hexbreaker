@@ -1,0 +1,33 @@
+{
+  "case_id": "nist-hackingcase-recycler-q28",
+  "f1": 1.0,
+  "fn": 0,
+  "fp": 0,
+  "fp_planted": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "results": [
+    {
+      "artifact_kind": "other",
+      "classification": "true_positive",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\WinPcap_3_01_a.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "classification": "true_positive",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\ethereal-setup-0.10.6.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "classification": "true_positive",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "classification": "true_positive",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\netstumblerinstaller_0_4_0.exe"
+    }
+  ],
+  "template": "nist_recycler",
+  "tp": 4
+}

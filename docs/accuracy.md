@@ -43,7 +43,7 @@ Source: NIST CFReDS, https://cfreds-archive.nist.gov/Hacking_Case.html
 
 ### 1.3 What we did NOT do
 
-- We did NOT run Court on NIST Hacking Case. The Court is architected around `(artifact_kind, target)` Verdicts, not 31 free-form Q&A pairs. Adapting the Court to Q&A is non-trivial and would conflate "architecture quality" with "adaptation effort."
+- We did NOT run Court on all 31 NIST Q&A pairs. The Court is architected around `(artifact_kind, target)` Verdicts, not 31 free-form Q&A pairs, and adapting it to free-form Q&A would conflate "architecture quality" with "adaptation effort." We DID adapt and run the Court on the one NIST question that maps cleanly to a `(kind, target)` Verdict — the recycle-bin recovery question (Q28) — on the real `.E01`; the measured, signed result is in §2.4 and [`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md). That is ~1 of the ~31 question-families, reported as such.
 - We did NOT run dhyabi2 on Forge cases. Their pipeline requires real disk-image artifacts; our Forge cases are synthetic CSVs sized for the LLM context window.
 - We did NOT score against marez8505/find-evil or Valhuntir. _(Both planned for Week 2; see §6.)_
 
@@ -150,13 +150,15 @@ repeated accusation) or no valid claim. Findings are deduped on
   `max_rounds = N`, where N is the number of deleted-exe slots **visible in the
   INFO2 recycle-bin evidence the Prosecutor reads** (a forensic count off the disk,
   not a peek at the withheld answer key). Each round independently re-accuses a
-  different recycle-bin entry. *Measurement status:* the NIST `.E01`
-  (`datasets/nist-hacking-case/4Dell_Latitude_CPi.E01`) and its extracts are staged
-  on the host, so the genuine multi-round Court-on-NIST is runnable; the measured,
-  signed multi-round result is reported in the NIST section below. The prior
-  single-finding recall (~0.25) is the baseline it lifts from. Reported honestly as
-  N-of-4 recycle-bin exes with `artifact_kind='other'` — this is ~1 of the ~31 NIST
-  question-families, not a 31-question F1.
+  different recycle-bin entry. **Measured (real `.E01`, signed):** across **5
+  independent multi-round runs** the Court recovered **all 4** deleted recycle-bin
+  executables (lalsetup, netstumbler, WinPcap, ethereal) every time — **4/4,
+  precision 1.0, recall 1.0, F1 1.0, `fp_planted = 0`, 5/5 runs**, with all five
+  transcripts **chain + HMAC verified** ([`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md),
+  E01 SHA256 matches §1.2). The prior **single-finding** recall (~0.25 — `max_rounds=1`
+  confirms only the first slot, `lalsetup`) is the baseline it lifts from. Reported
+  honestly as 4-of-4 recycle-bin exes with `artifact_kind='other'` (deletion proven,
+  not execution) — this is ~1 of the ~31 NIST question-families, not a 31-question F1.
 - **Measured accuracy-under-load (C2):** a new multi-expected Forge case
   (`template_multi_artifact`, headline templates untouched) ships TWO distinct true
   artifacts — a timestomped driver (MFTECmd + yara on the same path) and an HKLM
@@ -247,8 +249,11 @@ not assert a replacement number here.
 
 This batched path is **not** the adversarial Hexbreaker Court: it has no
 Defender, no FSM, no hash-chained transcript, and no HMAC signature. It must not
-be labeled "Court" or "verifiable". A genuine Court-on-NIST measurement is
-future work.
+be labeled "Court" or "verifiable". The genuine Court-on-NIST measurement — the
+adversarial FSM Court on the real `.E01`, with Defender, deterministic Judge,
+hash chain, and HMAC — is reported in §2.4 and committed under
+[`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md) (5/5 runs, 4/4,
+chain+HMAC verified). It replaces this withdrawn batched figure entirely.
 
 ### 3.3 Interpretation
 

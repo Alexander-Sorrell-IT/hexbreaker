@@ -1,0 +1,32 @@
+{
+  "case_id": "nist-hackingcase-recycler-q28",
+  "decoys": [],
+  "expected_findings": [
+    {
+      "artifact_kind": "other",
+      "must_have_verdict": "CONFIRMED",
+      "note": "recycle-bin executable recovered via fls+INFO2 (NIST Q28)",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "must_have_verdict": "CONFIRMED",
+      "note": "recycle-bin executable recovered via fls+INFO2 (NIST Q28)",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\netstumblerinstaller_0_4_0.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "must_have_verdict": "CONFIRMED",
+      "note": "recycle-bin executable recovered via fls+INFO2 (NIST Q28)",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\WinPcap_3_01_a.exe"
+    },
+    {
+      "artifact_kind": "other",
+      "must_have_verdict": "CONFIRMED",
+      "note": "recycle-bin executable recovered via fls+INFO2 (NIST Q28)",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\ethereal-setup-0.10.6.exe"
+    }
+  ],
+  "planted": [],
+  "template": "nist_recycler"
+}

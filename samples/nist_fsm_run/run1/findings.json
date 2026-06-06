@@ -1,0 +1,54 @@
+{
+  "case_id": "nist-hackingcase-recycler-q28",
+  "findings": [
+    {
+      "artifact_kind": "other",
+      "challenge_text": "The primary evidence is the INFO2 record extracted in S-002 which lists the original path for Dc1.exe as 'C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe'. This is independently corroborated by the fls listing in S-001 (identical output in S-005) which confirms the existence of Dc1.exe within the RECYCLER directory. Both required independent signals—the recycle-bin entry and the INFO2 path mapping—are present and consistent, establishing the factual link. The claim that the user deliberately deleted and concealed the executable is a matter of interpretation, but the underlying artifact identification is confirmed.",
+      "cited_steps": [
+        "S-001",
+        "S-002"
+      ],
+      "corroboration_strength": "single_identifier",
+      "reasoning_excerpt": "We are the Defender. The Prosecutor claims that Dc1.exe in the RECYCLER originally was C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe, and that this is suspicious. The cited steps are S-001 and S-002.\n\nS-001 is an fls listing of the RECYCLER directory showing Dc1.exe exists at RECYCLER/S-1-5-21-.../Dc1.exe. That shows the executable is present in the recycle bin.\n\nS-002 is an icat of the INFO2 file (inode 11850). The stdout shows a list of original paths. The first one is \"C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe\". The INFO2 record maps the recycle bin entries to ",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "artifact_kind": "other",
+      "challenge_text": "The primary signal is the INFO2 record extracted in S-002, which maps Dc2.exe to the original path C:\\Documents and Settings\\Mr. Evil\\Desktop\\netstumblerinstaller_0_4_0.exe. The second independent signal is the fls listing in S-001 (and again in S-005/S-008) showing the existence of Dc2.exe in the RECYCLER directory. Both required independent confirmations are present, so the factual link between the recycle-bin artifact and the claimed original path is established.",
+      "cited_steps": [
+        "S-001",
+        "S-002"
+      ],
+      "corroboration_strength": "single_identifier",
+      "reasoning_excerpt": "We need to evaluate the claim about Dc2.exe and its original path netstumblerinstaller_0_4_0.exe. The prosecutor cites S-001 (fls listing showing Dc2.exe in RECYCLER) and S-002 (INFO2 record showing original paths). For each recycle-bin executable, we need TWO independent signals: (1) the fls listing showing the Dc<N> entry exists, and (2) the INFO2 record mapping that slot to the accused original path. Here, S-001 shows RECYCLER/S-1-5-21-.../Dc2.exe exists. S-002 shows the INFO2 record lists original paths in order: first for Dc1.exe, second for Dc2.exe (since Dc1 is lalsetup250.exe, Dc2 is n",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\netstumblerinstaller_0_4_0.exe",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "artifact_kind": "other",
+      "challenge_text": "Primary signal: the INFO2 record extracted in S-002 maps Dc3.exe to the original path 'C:\\Documents and Settings\\Mr. Evil\\Desktop\\WinPcap_3_01_a.exe'. Second independent signal: the fls listing in S-001 (and repeated in S-011) shows the existence of Dc3.exe within the RECYCLER directory. Both required independent confirmations are present, establishing the factual link. The claim that the user deliberately deleted and concealed the executable is interpretive, but the artifact identification is confirmed.",
+      "cited_steps": [
+        "S-001",
+        "S-002"
+      ],
+      "corroboration_strength": "single_identifier",
+      "reasoning_excerpt": "We need to analyze the claim. The claim says Dc3.exe originally resided at C:\\Documents and Settings\\Mr. Evil\\Desktop\\WinPcap_3_01_a.exe. The prosecutor cites S-001 (fls listing) and S-002 (INFO2 record). The primary evidence is the INFO2 record mapping Dc3.exe to that path. The second independent signal required by the CORROBORATION RULE is the fls listing showing the existence of Dc3.exe in the RECYCLER. S-001 shows Dc3.exe in the RECYCLER listing. Both are present. So the verdict should be CONFIRMED. But note: The challenge_text must name the primary signal, state whether the second indepen",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\WinPcap_3_01_a.exe",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "artifact_kind": "other",
+      "challenge_text": "Primary signal: the INFO2 record in S-002 maps Dc4.exe to the original path 'C:\\Documents and Settings\\Mr. Evil\\Desktop\\ethereal-setup-0.10.6.exe'. Second independent signal: the fls listing in S-001 (and again in S-014) shows the existence of Dc4.exe in the RECYCLER directory. Both required independent confirmations are present, establishing the factual link between the recycle-bin artifact and the claimed original path.",
+      "cited_steps": [
+        "S-001",
+        "S-002"
+      ],
+      "corroboration_strength": "single_identifier",
+      "reasoning_excerpt": "We need to evaluate the claim about Dc4.exe and its original path. The claim cites S-001 (fls showing RECYCLER contents) and S-002 (INFO2 record). The target is \"C:\\Documents and Settings\\Mr. Evil\\Desktop\\ethereal-setup-0.10.6.exe\". The INFO2 record from S-002 lists original paths: \"C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe\", \"netstumblerinstaller_0_4_0.exe\", \"WinPcap_3_01_a.exe\", \"ethereal-setup-0.10.6.exe\". The fls listing from S-001 (and repeated in S-014) shows Dc4.exe exists in RECYCLER. So we have two independent signals: (1) fls showing Dc4.exe exists, (2) INFO2 mapping",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\ethereal-setup-0.10.6.exe",
+      "verdict": "CONFIRMED"
+    }
+  ],
+  "template": "nist_recycler"
+}

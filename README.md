@@ -7,13 +7,24 @@
 
 Across **two** HMAC-signed Forge sweeps (40 runs/mode each): **F1 ≈ 0.95–0.975 normal / ≈ 0.475–0.525 under maximum adversarial pressure** (planted artifacts + runtime prompt injection on every round, all 6 safeguard layers firing). **0 planted artifacts confirmed across all 80 provocateur runs** (160/160 chain+HMAC verified). Honest caveat: in each sweep the agent confirmed a finding in ~19–21 of 40 provocateur runs (0 planted) and found nothing in the rest — bait-resistance is shown on the runs where it actually had the opportunity, not robustly across all 40. Exact F1 varies run-to-run (DeepSeek is non-deterministic); both committed JSONs are the artifacts of record.
 
-> **NIST batched-Q&A number withdrawn.** An earlier `scripts/court_on_nist.py`
-> run reported 95.08% F1 on the NIST CFReDS Hacking Case, but that batched
-> pipeline injected literal ground-truth answers into the prompt, so the number
-> measured string-copying, not forensics. The injection has been removed; the
-> batched path is NOT the adversarial Court (no Defender, no FSM, no hash chain)
-> and is not labeled "Court" or "verifiable". A real Court-on-NIST measurement
-> is future work.
+**Real-disk measurement (NIST CFReDS Hacking Case, `.E01`):**
+
+The adversarial FSM Court, run on the genuine seized disk image, recovered **all 4
+deleted recycle-bin executables** (lalsetup, netstumbler, WinPcap, ethereal) via
+`fls`+`INFO2` cross-corroboration — **4/4, precision/recall/F1 = 1.0, `fp_planted = 0`,
+across 5/5 signed runs**, every transcript chain+HMAC verified
+([`samples/nist_fsm_run/`](samples/nist_fsm_run/SUMMARY.md)). Scope, stated plainly:
+the recycle-bin question (NIST Q28) — ~1 of the case's ~31 question families;
+`artifact_kind = "other"` (deletion proven, not execution); `max_rounds = 4` is the
+count of deleted-exe slots visible in the real INFO2 index, not a peek at the answer
+key (enforced by `tests/test_court_on_nist_fsm_honesty.py`).
+
+> **NIST batched-Q&A number withdrawn (do not confuse with the above).** A *different*,
+> earlier `scripts/court_on_nist.py` run reported 95.08% F1, but that batched pipeline
+> injected literal ground-truth answers into the prompt, so the number measured
+> string-copying, not forensics. The injection has been removed; the batched path is
+> NOT the adversarial Court (no Defender, no FSM, no hash chain) and is not labeled
+> "Court" or "verifiable". The signed multi-round result above replaces it.
 
 Full numbers + per-question breakdown: [docs/accuracy.md](docs/accuracy.md).
 

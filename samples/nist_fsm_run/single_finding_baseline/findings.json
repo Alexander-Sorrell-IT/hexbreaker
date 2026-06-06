@@ -1,0 +1,18 @@
+{
+  "case_id": "nist-hackingcase-recycler-q28",
+  "findings": [
+    {
+      "artifact_kind": "other",
+      "challenge_text": "Primary signal: fls listing (S-001) shows Dc1.exe in the RECYCLER directory. Second independent signal: INFO2 record (S-002) maps that Dc1 slot to the target path C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe. Both required components are present, so the claim that the file was deleted and placed in the recycle bin as Dc1.exe is confirmed. Verdict: CONFIRMED.",
+      "cited_steps": [
+        "S-001",
+        "S-002"
+      ],
+      "corroboration_strength": "single_identifier",
+      "reasoning_excerpt": "We need to decide the verdict: CONFIRMED, CONTESTED, or REJECTED based on the corroboration rule. The claim says the file at target path was deleted and placed in recycle bin as Dc1.exe, and that the executable was deliberately hidden. The cited steps are S-001 and S-002.\n\nS-001 is an fls listing showing RECYCLER directory and contains Dc1.exe, Dc2.exe, etc. It shows the file RECYCLER/.../Dc1.exe exists. That's the first independent signal: the fls listing showing the Dc1.exe entry.\n\nS-002 is an icat of INFO2 record. The INFO2 record shows original paths. It lists four paths, including \"C:\\Doc",
+      "target": "C:\\Documents and Settings\\Mr. Evil\\Desktop\\lalsetup250.exe",
+      "verdict": "CONFIRMED"
+    }
+  ],
+  "template": "nist_recycler"
+}

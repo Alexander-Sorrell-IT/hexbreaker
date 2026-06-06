@@ -1,0 +1,49 @@
+{
+  "allowed_tools": [
+    "fls",
+    "icat"
+  ],
+  "case_id": "nist-hackingcase-recycler-q28",
+  "defender_steps": [
+    {
+      "args": [
+        "-o",
+        "63",
+        "-r",
+        "-p",
+        "RECYCLER",
+        "-l"
+      ],
+      "tool": "fls"
+    }
+  ],
+  "description": "NIST CFReDS Hacking Case — RECYCLER recovered executables (Q28).",
+  "mock_outputs": {
+    "fls|-o|63|-r|-p|RECYCLER": "mock_outputs/fls.txt",
+    "fls|-o|63|-r|-p|RECYCLER|-l": "mock_outputs/fls.txt",
+    "icat|-o|63|ewf1|11850": "mock_outputs/info2.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-o",
+        "63",
+        "-r",
+        "-p",
+        "RECYCLER"
+      ],
+      "tool": "fls"
+    },
+    {
+      "args": [
+        "-o",
+        "63",
+        "ewf1",
+        "11850"
+      ],
+      "tool": "icat"
+    }
+  ],
+  "seed": 0,
+  "template": "nist_recycler"
+}
