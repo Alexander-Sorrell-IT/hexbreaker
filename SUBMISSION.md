@@ -51,12 +51,23 @@ The six criteria are **equally weighted** (verbatim, [official rules](https://fi
 ## Submission-day commands
 
 ```bash
-# 1. Make sure local is clean and pushed
-git status
-git push origin main
+# 0. PUT THE REAL WORK ON THE DEFAULT BRANCH FIRST.
+#    All 27 commits live on `wave3-honesty-multifinding`; `main` is the stale
+#    scaffold. `git push origin main` ALONE would publish nothing real. Local
+#    `main` fast-forwards cleanly to wave3 (verified: `git merge-base --is-ancestor
+#    main wave3-honesty-multifinding`), so:
+git checkout main
+git merge --ff-only wave3-honesty-multifinding   # main -> 57aeadf (or latest), no merge commit
+git log --oneline -1                              # confirm main == wave3 head
 
-# 2. Flip repo visibility
+# 1. Push the real work to origin/main (repo can still be PRIVATE for this push)
+git status                                        # must be clean
+git push origin main                              # publishes all 27 commits
+
+# 2. Flip repo visibility to PUBLIC (the irreversible, judge-facing step)
 gh repo edit Alexander-Sorrell-IT/hexbreaker --visibility public
+#    Verify in a logged-out browser: repo loads, default branch shows all commits,
+#    About panel shows "MIT License", anonymous `git clone` works.
 
 # 3. Tag the submission commit
 git tag -a v1.0.0-findevil-submission -m "Find Evil! 2026 submission"
