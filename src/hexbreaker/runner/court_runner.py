@@ -383,6 +383,7 @@ def run_court_on_case(
     )
 
     findings: list[dict[str, Any]] = []
+    inferred: list[dict[str, Any]] = []  # accepted CONTESTED verdicts — surfaced, NOT scored
     accused: list[tuple[str, str]] = []  # every (artifact_kind, target) accused, agent-authored
 
     # 2-5. Bounded multi-round investigation. max_rounds=1 is byte-identical to the
@@ -493,14 +494,32 @@ def run_court_on_case(
                 )
 
         if verdict_outcome.accepted and verdict_outcome.verdict is not None:
-            if verdict_outcome.verdict.verdict == "CONFIRMED":
+            v = verdict_outcome.verdict
+            if v.verdict == "CONFIRMED":
                 findings.append(
                     {
                         "artifact_kind": claim_outcome.claim.artifact_kind,
                         "target": claim_outcome.claim.target,
-                        "verdict": verdict_outcome.verdict.verdict,
-                        "cited_steps": [s.step_id for s in verdict_outcome.verdict.cited_steps],
-                        "challenge_text": verdict_outcome.verdict.challenge_text,
+                        "verdict": v.verdict,
+                        "cited_steps": [s.step_id for s in v.cited_steps],
+                        "challenge_text": v.challenge_text,
+                        "corroboration_strength": verdict_outcome.corroboration_strength,
+                        "reasoning_excerpt": (verdict_resp.reasoning_content or "")[:600],
+                    }
+                )
+            elif v.verdict == "CONTESTED":
+                # The agent reached a conclusion but the evidence does NOT clear the
+                # corroboration bar — surface it as INFERRED (not CONFIRMED). This is
+                # the "confirmed vs inferred distinguished" half of IR Accuracy. It is
+                # NEVER scored as a TP (the scorer only sees `findings`).
+                inferred.append(
+                    {
+                        "artifact_kind": claim_outcome.claim.artifact_kind,
+                        "target": claim_outcome.claim.target,
+                        "status": "inferred_not_confirmed",
+                        "verdict": v.verdict,
+                        "cited_steps": [s.step_id for s in v.cited_steps],
+                        "challenge_text": v.challenge_text,
                         "corroboration_strength": verdict_outcome.corroboration_strength,
                         "reasoning_excerpt": (verdict_resp.reasoning_content or "")[:600],
                     }
@@ -516,7 +535,16 @@ def run_court_on_case(
             seen_keys.add(k)
             deduped.append(f)
 
-    return _write_findings(manifest, deduped, transcript_path, findings_path)
+    # Dedup inferred the same way; never surface a target that was also CONFIRMED.
+    deduped_inferred: list[dict[str, Any]] = []
+    seen_inf: set[tuple[str, str]] = set()
+    for f in inferred:
+        k = (f["artifact_kind"], f["target"])
+        if k not in seen_keys and k not in seen_inf:
+            seen_inf.add(k)
+            deduped_inferred.append(f)
+
+    return _write_findings(manifest, deduped, transcript_path, findings_path, deduped_inferred)
 
 
 def _sign_if_keyed(transcript_path: Path) -> None:
@@ -549,12 +577,19 @@ def _write_findings(
     findings: list[dict[str, Any]],
     transcript_path: Path,
     findings_path: Path,
+    inferred: list[dict[str, Any]] | None = None,
 ) -> CourtRunResult:
-    payload = {
+    payload: dict[str, Any] = {
         "case_id": manifest.case_id,
         "template": manifest.template,
         "findings": findings,
     }
+    # Surface CONTESTED ("inferred, not confirmed") conclusions ONLY when present, so a
+    # run with none is byte-identical to before (preserves the max_rounds=1 golden test
+    # + every committed findings.json). These are shown for IR-Accuracy transparency and
+    # are NEVER scored — the scorer reads `findings` only.
+    if inferred:
+        payload["inferred"] = inferred
     findings_path.write_bytes(orjson.dumps(payload, option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS))
     _sign_if_keyed(transcript_path)
     return CourtRunResult(

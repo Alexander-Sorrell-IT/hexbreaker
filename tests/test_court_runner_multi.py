@@ -170,3 +170,26 @@ def test_two_sessions_one_transcript_fsm(tmp_path: Path):
     ids = [r.step_id for r in recs]
     assert ids == [f"S-{i:03d}" for i in range(1, len(recs) + 1)]  # contiguous across sessions
     assert verify(t.path)[0] is True
+
+
+# (f) CONTESTED surfaces as an inferred_not_confirmed row — shown, never scored as TP.
+def test_contested_surfaces_as_inferred(tmp_path: Path):
+    case = _make_case(tmp_path, 4729)
+    # cite_n_tools=1 -> JR-01 downgrades CONFIRMED to CONTESTED at runtime.
+    run_court_on_case(case, client=FakeClient([r"\Windows\System32\evil.sys"], cite_n_tools=1),
+                      max_rounds=1)
+    payload = _findings(case)
+    assert payload["findings"] == []                       # nothing CONFIRMED -> 0 TP
+    inf = payload.get("inferred", [])
+    assert len(inf) == 1 and inf[0]["status"] == "inferred_not_confirmed"
+    assert inf[0]["verdict"] == "CONTESTED"
+    assert inf[0]["target"] == r"\Windows\System32\evil.sys"
+
+
+# (g) a CONFIRMED-only run OMITS the `inferred` key entirely (byte-identity invariant).
+def test_confirmed_only_omits_inferred_key(tmp_path: Path):
+    case = _make_case(tmp_path, 4729)
+    run_court_on_case(case, client=FakeClient([r"\Windows\System32\evil.sys"]), max_rounds=1)
+    payload = _findings(case)
+    assert len(payload["findings"]) == 1
+    assert "inferred" not in payload  # omit-when-empty -> findings.json byte-identical

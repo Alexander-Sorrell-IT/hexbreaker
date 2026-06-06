@@ -187,6 +187,15 @@ repeated accusation) or no valid claim. Findings are deduped on
   by measuring it, not hiding it. A genuine *architectural* downgrade would require
   rebuilding each template's corroboration to be same-identifier (as the registry
   template now is, via Sysmon EventID-13); that is post-submission work, not claimed.
+- **Confirmed vs inferred — surfaced, not just enforced (the third IR-Accuracy clause).**
+  A verdict the Court accepts but cannot clear past JR-01 corroboration (CONTESTED) is
+  now written to `findings.json` under a separate `inferred` list, each row tagged
+  `status: "inferred_not_confirmed"` with its `challenge_text` + `corroboration_strength`.
+  These rows are **never scored** (the scorer reads `findings` only, so headline F1 is
+  unchanged) and the key is **omitted when empty** (CONFIRMED-only runs stay byte-identical).
+  So a reader sees both halves: what the agent confirmed, and what it explicitly declined
+  to confirm. Pinned by `tests/test_court_runner_multi.py` (CONTESTED → an inferred row + 0
+  TP; CONFIRMED-only omits the key).
 
 ## 3. Independent verification of dhyabi2's 100% on NIST
 
