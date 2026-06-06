@@ -26,18 +26,23 @@ case-<seed>-<template>/
     └── ...
 ```
 
-### 1.2 Case template registry (v1)
+### 1.2 Case template registry (6 templates ship)
 
 | Template id | Artifact kind | Synthesizes | Expected finding |
 |---|---|---|---|
 | `timestomp` | `timestomp` | MFTECmd CSV with one row whose `$STANDARD_INFORMATION.Created` (`Created0x10`) diverges from `$FILE_NAME.Created` (`Created0x30`) by 5+ years, plus 4 decoy entries with matching timestamps. Optional Provocateur mode plants 2 additional rows with timestomp signatures but no yara confirmation. | full Windows path of the timestomped binary, e.g. `\Windows\System32\drivers\mssecsvc2.exe` |
 | `registry_persistence` | `persistence` | RECmd dump of `HKLM\Software\Microsoft\Windows\CurrentVersion\Run` with one malicious value pointing at a user-writable path, 4 legitimate decoys (Adobe Updater, OneDrive, MSEdge, etc.), Provocateur mode adds 2 plants. | full HKLM path including value name, e.g. `HKLM\Software\Microsoft\Windows\CurrentVersion\Run\svchosts_loader` |
+| `multi_artifact` | `timestomp` + `persistence` | fuses a timestomp leg (MFTECmd) and a registry Run-key leg (RECmd + EvtxECmd Sysmon EventID-13 naming the same key) into one case for multi-finding load; Provocateur adds a corroborator-less plant. | both leg targets (full MFT path **and** full HKLM Run-key path) |
+| `browser` | `browser` | bulk_extractor + log2timeline both naming the same malicious URL. | full URL of the malicious browser artifact |
+| `prefetch` | `execution` | PECmd + yara on the same executed binary. | full path of the executed binary |
+| `amcache` | `execution` | AmcacheParser + yara on the same path. | full path of the amcache-recorded binary |
 
-Six artifact-type templates now ship: timestomp, registry_persistence, multi_artifact
-(fuses a timestomp leg + a registry-persistence leg for multi-finding), browser
-(bulk_extractor + log2timeline on the same URL), prefetch (PECmd + yara on the same
-executable), and amcache (AmcacheParser + yara on the same path). Each true artifact
-has genuine per-target corroboration from two distinct tool kinds.
+Each true artifact has genuine per-target corroboration from two distinct tool kinds.
+**Honest scoring caveat:** on the breadth sweep (`sweeps/2026-05-30_breadth3_signed.json`)
+`browser` scores F1≈0.9, but `prefetch`/`amcache` score ≈0 — a *target-format* gap
+(the agent confirms the correct artifact but emits a short name vs the answer-key's full
+path), not a detection failure. Per-template prompt tuning to close it is post-submission
+work; see [accuracy.md](accuracy.md).
 
 ### 1.3 Answer-key schema
 

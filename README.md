@@ -132,7 +132,7 @@ src/hexbreaker/
 ├── runner/court_runner.py
 └── cli.py               # hexbreaker generate / run / score / verify / sign
 
-tests/                   # 176 unit + 4 live integration (live skipped without HEXBREAKER_RUN_LIVE=1)
+tests/                   # 169 pass + 5 skipped (4 live + MCP); 178 pass with the [mcp] extra
 docs/
 ├── architecture.md      # security boundaries + data flow
 ├── accuracy.md          # measured numbers + methodology
@@ -155,7 +155,7 @@ scripts/
 ## Tests
 
 ```bash
-pytest                                  # 176 unit tests pass (4 live tests skipped), ~8 s
+PYTHONPATH=src python -m pytest -q      # 169 pass, 5 skipped (4 live + MCP suite), ~7 s
 HEXBREAKER_RUN_LIVE=1 pytest            # also runs the 4 live DeepSeek integration tests (needs API key)
 ```
 

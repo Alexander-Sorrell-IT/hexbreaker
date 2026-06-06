@@ -27,13 +27,14 @@ That's not a methodology indictment; it's a **dataset saturation problem.** When
 
 Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA256** signing (PBKDF2 600,000 iterations, MIT-licensed pattern ported from AppliedIR/Valhuntir with attribution). Cited evidence references both `step_id` and `stdout_hash`; the citation validator (Layer 1) and the chain verifier (Layer 4) reject any Verdict that cites fabricated or tampered steps.
 
-**Hexbreaker Forge** synthesizes Windows DFIR cases from a 32-bit integer seed. Two templates in v1 (timestomp via MFTECmd CSV, registry persistence via RECmd Run-key dump); five more planned. Each case has an `answer_key.json` with `expected_findings`, `decoys`, and optional `planted` (Provocateur) entries. Anyone can `hexbreaker generate --seed N`, run any agent, and score with a strict `(artifact_kind, target)` exact-tuple match.
+**Hexbreaker Forge** synthesizes Windows DFIR cases from a 32-bit integer seed. Six templates ship (timestomp via MFTECmd CSV, registry_persistence via RECmd Run-key dump, multi_artifact for multi-finding load, browser, prefetch, amcache). Each case has an `answer_key.json` with `expected_findings`, `decoys`, and optional `planted` (Provocateur) entries. Anyone can `hexbreaker generate --seed N`, run any agent, and score with a strict `(artifact_kind, target)` exact-tuple match.
 
 ## Measured results
 
 | Run | F1 | Source |
 |---|---|---|
-| ~~Hexbreaker Court on NIST Hacking Case~~ **WITHDRAWN** — the batched `court_on_nist.py` run injected literal ground-truth answers into the prompt, so this measured string-copying, not forensics. Injection removed; number not reproducible. | ~~95.08%~~ withdrawn | — |
+| ~~Hexbreaker Court on NIST Hacking Case (batched)~~ **WITHDRAWN** — the batched `court_on_nist.py` run injected literal ground-truth answers into the prompt, so this measured string-copying, not forensics. Injection removed; number not reproducible. | ~~95.08%~~ withdrawn | — |
+| **Hexbreaker Court on NIST Hacking Case (real `.E01`, multi-round FSM, signed)** — the genuine adversarial Court, no injection | **4/4 deleted recycle-bin exes recovered; P/R/F1 = 1.0; fp_planted=0; 5/5 runs** | [`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md) — chain+HMAC verified, E01 SHA256 matches docs. Scope: recycle-bin Q (~1 of ~31), `artifact_kind='other'` |
 | dhyabi2 IABF on NIST (Gemma 4 31B + SIFT, **their original stack**, **their self-reported number**) | 100% | dhyabi2/findevil ACCURACY.md |
 | dhyabi2 IABF on NIST (DeepSeek + Ubuntu, **our independent re-measurement**) | **0.0%** | `sweeps/competitors/score_deepseek.json` |
 | marez8505 on NIST under DeepSeek constraint | **not runnable** | competitor briefing — hardcoded to Anthropic `claude --print` |
@@ -81,7 +82,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 ## What's next
 
-- Three more Forge templates (browser, prefetch, run-key persistence) to N=5 case kinds
+- Per-template prompt tuning to close the prefetch/amcache target-format scoring gap (the agent confirms the right artifact but emits a short name vs the answer-key's full path)
 - N=50 sweeps for tight stdev intervals
 - Multi-template leaderboard (Court vs naive-LLM baseline)
 - Witness LLM reasoning (v1 records the call; v2 does the independent investigation)
@@ -89,4 +90,4 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 ## Built by
 
-Alexander Sorrell (Alexander-Sorrell-IT), with Claude Opus 4.7 (1M context) as collaborator. All commits are MIT-licensed; the HMAC primitive carries upstream attribution to AppliedIR/Valhuntir.
+Alexander Sorrell (Alexander-Sorrell-IT), with Claude Opus 4.8 (1M context) as collaborator. All commits are MIT-licensed; the HMAC primitive carries upstream attribution to AppliedIR/Valhuntir.

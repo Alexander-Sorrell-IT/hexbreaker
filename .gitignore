@@ -55,3 +55,11 @@ htmlcov/
 # Local notes (planning lives outside the repo)
 SCRATCH.md
 TODO.local.md
+
+# Internal planning / audit scratch + agent worktrees (keep OUT of the public repo)
+.claude/
+AUDIT_*.md
+*_raw.json
+MULTIFINDING_PLAN.md
+RELOOK_STRATEGIC.md
+ROADMAP_NEXT.md

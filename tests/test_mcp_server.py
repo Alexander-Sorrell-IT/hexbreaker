@@ -10,11 +10,17 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import mcp.types as types
 import orjson
 import pytest
 
-from hexbreaker.mcp.server import (
+# The MCP server is an optional extra (`pip install -e '.[mcp]'`); the standard
+# test install (`.[test,deepseek]`) omits it. Skip this module cleanly when the
+# `mcp` package is absent so a bare `pytest` run still passes for any reproducer.
+pytest.importorskip("mcp")
+
+import mcp.types as types  # noqa: E402
+
+from hexbreaker.mcp.server import (  # noqa: E402
     RUN_TOOL_NAME,
     build_server,
     execute_sift_tool,

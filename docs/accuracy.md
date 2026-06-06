@@ -167,7 +167,7 @@ repeated accusation) or no valid claim. Findings are deduped on
   plus a planted bait with a primary signal but no corroborator. **Measured**
   (`sweeps/2026-05-29_C2_multi.json`, `max_rounds=3`, 10 seeds × 2 modes,
   HMAC-signed, **20/20 chain+HMAC verified**): the loop surfaced **both** true
-  artifacts in a single run in **13 of 20 runs**; the provocateur arm scored
+  artifacts in a single run in **15 of 20 runs** (8 normal + 7 provocateur); the provocateur arm scored
   **precision 1.0 / recall 0.85 / F1 0.9 with `fp_planted = 0/10`**, and the
   normal arm F1 0.893. So accuracy **holds under multi-finding load** — multiple
   true positives per run AND zero bait taken under attack. This is the measured C2
@@ -317,11 +317,11 @@ Forge optionally plants timestomp-signature MFT rows with no yara corroboration.
 
 | Gap | Plan |
 |---|---|
-| 4 remaining Forge templates (registry persistence, browser, prefetch, run-key) | Build during Week 2 (6/2-6/8) |
-| HMAC chain signing (Layer 5 re-derivation) | Wed 6/3 per plan |
-| marez8505/find-evil and Valhuntir runs | Fri 6/5 per plan |
-| Larger N per template (target N=50) | Week 2-3 |
-| Live demo recording w/ unscripted self-correction | Wed 6/10 per plan |
+| `prefetch`/`amcache` target-format scoring gap (agent confirms the right artifact but emits a short name vs the answer-key's full path) | Per-template prompt tuning, post-submission |
+| Wider real-disk NIST coverage (currently the recycle-bin Q28 only, 1 of ~31 question-families) | Post-submission, via the FSM path only (never the withdrawn injected pipeline) |
+| marez8505/find-evil and Valhuntir head-to-heads | marez8505 is Anthropic-locked (not runnable under the DeepSeek-only constraint); Valhuntir is human-in-loop (different category, MIT HMAC pattern borrowed with attribution) |
+| Larger N per template (target N=50) for tighter stdev | Post-submission |
+| Live demo recording w/ self-correction + public upload | Human gate (see [docs/demo_runbook.md](demo_runbook.md)) |
 
 ## 7. Reproducibility
 

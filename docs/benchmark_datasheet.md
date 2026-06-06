@@ -309,10 +309,10 @@ does not care who produced them).
 - **Versioning.** Cases embed `seed`, `template`, and the `case_id`
   (`case-<seed>-<template>[-provoked]`). Reproducibility is the contract: a committed
   sweep JSON + the generator code regenerates the exact cases.
-- **Errata.** `docs/dataset.md` §1.2 is *stale* — it lists only 2 templates and
-  "three more planned." The current authoritative template list is the table in §2.2 of
-  this datasheet (6 templates, all implemented). The withdrawn NIST 95.08% (see §5 item 2)
-  is the other known erratum and is already corrected in `docs/accuracy.md`.
+- **Errata.** The withdrawn NIST 95.08% batched figure (see §5 item 2) is corrected in
+  `docs/accuracy.md`; the genuine signed Court-on-NIST result (4/4, `samples/nist_fsm_run/`)
+  replaces it. `docs/dataset.md` §1.2 now lists all 6 templates, consistent with the
+  table in §2.2 of this datasheet.
 - **Contact / owner.** Hexbreaker repository maintainers (Find Evil! hackathon
   submission).
 
