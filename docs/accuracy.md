@@ -155,8 +155,10 @@ repeated accusation) or no valid claim. Findings are deduped on
   executables (lalsetup, netstumbler, WinPcap, ethereal) every time — **4/4,
   precision 1.0, recall 1.0, F1 1.0, `fp_planted = 0`, 5/5 runs**, with all five
   transcripts **chain + HMAC verified** ([`samples/nist_fsm_run/`](../samples/nist_fsm_run/SUMMARY.md),
-  E01 SHA256 matches §1.2). The prior **single-finding** recall (~0.25 — `max_rounds=1`
-  confirms only the first slot, `lalsetup`) is the baseline it lifts from. Reported
+  E01 SHA256 matches §1.2). *(This NIST case has no planted decoys, so its precision
+  1.0 / `fp_planted=0` are recovery accuracy, **not** bait-resistance — bait-resistance
+  is the Forge `fp_planted=0/80` above.)* The prior **single-finding** recall (~0.25 —
+  `max_rounds=1` confirms only the first slot, `lalsetup`) is the baseline it lifts from. Reported
   honestly as 4-of-4 recycle-bin exes with `artifact_kind='other'` (deletion proven,
   not execution) — this is ~1 of the ~31 NIST question-families, not a 31-question F1.
 - **Measured accuracy-under-load (C2):** a new multi-expected Forge case

@@ -47,6 +47,12 @@ The four recovered targets (the attacker "Mr. Evil"'s deleted tools):
   is consumed **only by the scorer, after the run**. Both this property and the
   `max_rounds`-from-INFO2 property are enforced by
   `tests/test_court_on_nist_fsm_honesty.py`.
+- **Precision 1.0 here is recovery accuracy, NOT bait-resistance.** This NIST case
+  has **no planted decoys** (`answer_key.json` → `decoys: []`, `planted: []`), so
+  `precision = 1.0` / `fp_planted = 0` mean the Court recovered the right artifacts —
+  not that it resisted baited evidence. Bait-resistance is measured separately on the
+  Forge provocateur sweeps (`fp_planted = 0/80`). Do not read NIST precision as
+  adversarial robustness.
 - **Scope: 1 of ~31 NIST question families.** This is the recycle-bin question
   (NIST Q28) only. It is **not** a 31-question NIST F1.
 - **`artifact_kind = "other"`.** The recycle bin proves **deletion**, not
