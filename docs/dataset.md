@@ -38,11 +38,14 @@ case-<seed>-<template>/
 | `amcache` | `execution` | AmcacheParser + yara on the same path. | full path of the amcache-recorded binary |
 
 Each true artifact has genuine per-target corroboration from two distinct tool kinds.
-**Honest scoring caveat:** on the breadth sweep (`sweeps/2026-05-30_breadth3_signed.json`)
-`browser` scores F1≈0.9, but `prefetch`/`amcache` score ≈0 — a *target-format* gap
-(the agent confirms the correct artifact but emits a short name vs the answer-key's full
-path), not a detection failure. Per-template prompt tuning to close it is post-submission
-work; see [accuracy.md](accuracy.md).
+**Measured per-class F1 (signed):** each template carries genuine 2-tool corroboration,
+and each non-timestomp class now has its own artifact prompt so the agent emits the right
+`(artifact_kind, target)`. Latest signed sweep
+(`sweeps/2026-06-06_breadth_perprompt_signed.json`, 10 seeds × 2 modes): **prefetch F1 1.0,
+amcache F1 1.0, browser F1 0.6** (normal); `fp_planted = 0/60`; 60/60 chain+HMAC verified.
+*(An earlier sweep scored prefetch/amcache ≈0 because every template was run through the
+timestomp-only default prompt — a target-format bug in the harness, not a detection
+failure; fixed 2026-06-06 via per-artifact prompts. See [accuracy.md §6](accuracy.md).)*
 
 ### 1.3 Answer-key schema
 

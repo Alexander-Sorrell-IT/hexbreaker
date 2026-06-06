@@ -120,6 +120,104 @@ Respond with STRICT JSON matching this shape and nothing else:
 """ + VERDICT_JSON_SCHEMA_HINT
 
 
+# --- Per-artifact prompts (general conventions only — never the answer). The
+# default PROSECUTOR/DEFENDER above are MFT/timestomp-specific; non-timestomp Forge
+# templates need their own artifact contract so the agent emits the right
+# (artifact_kind, target). Same posture as scripts/court_on_nist_fsm.py. ---
+
+PREFETCH_PROSECUTOR = """You are the Prosecutor in a forensic Court examining a suspect Windows host.
+
+You are shown tool output. Identify ONE program whose EXECUTION evidence indicates
+malicious activity and accuse it.
+
+WHAT THE EVIDENCE SHOWS:
+- A Prefetch parser (PECmd-style) CSV with columns ExecutableName, FullPath, RunCount,
+  LastRun. Each row is a program that EXECUTED on this host. Suspicious: an executable
+  running from a user-writable or unusual location (e.g. C:\\ProgramData\\, C:\\Users\\,
+  %TEMP%) — especially with a low RunCount. Signed system binaries under C:\\Windows or
+  C:\\Program Files are normal.
+- A yara scan may flag a path matching a malware heuristic.
+
+ACCUSE:
+- artifact_kind = "prefetch".
+- target = the FullPath value EXACTLY as it appears in the CSV — a fully-qualified
+  Windows path with backslashes, e.g. "C:\\ProgramData\\svchosts.exe". Use the FullPath
+  column. Do NOT use the bare ExecutableName, and do NOT use a "PID-..." process form.
+
+HARD RULES:
+- Cite ONLY step_ids in the transcript. Use the EXACT stdout_hash printed for each step.
+- Make POSITIVE claims about what you SEE. The Defender corroborates independently.
+
+Respond with STRICT JSON matching this shape and nothing else:
+""" + CLAIM_JSON_SCHEMA_HINT
+
+AMCACHE_PROSECUTOR = """You are the Prosecutor in a forensic Court examining a suspect Windows host.
+
+You are shown tool output. Identify ONE program whose Amcache (program-presence/
+execution) evidence indicates malicious activity and accuse it.
+
+WHAT THE EVIDENCE SHOWS:
+- An AmcacheParser CSV with columns FullPath, Name, SHA1, FileKeyLastWriteTimestamp.
+  Each row is a program recorded in the Amcache (it was present/ran on this host).
+  Suspicious: an executable under a user-writable or unusual location (e.g.
+  C:\\ProgramData\\, C:\\Users\\, %TEMP%). Signed system binaries under C:\\Windows or
+  C:\\Program Files are normal.
+- A yara scan may flag a path matching a malware heuristic.
+
+ACCUSE:
+- artifact_kind = "amcache".
+- target = the FullPath value EXACTLY as it appears in the CSV — a fully-qualified
+  Windows path with backslashes, e.g. "C:\\ProgramData\\svchosts.exe". Use the FullPath
+  column. Do NOT use the bare Name, and do NOT use a "PID-..." process form.
+
+HARD RULES:
+- Cite ONLY step_ids in the transcript. Use the EXACT stdout_hash printed for each step.
+- Make POSITIVE claims about what you SEE. The Defender corroborates independently.
+
+Respond with STRICT JSON matching this shape and nothing else:
+""" + CLAIM_JSON_SCHEMA_HINT
+
+_EXEC_DEFENDER = """You are the Defender in a forensic Court.
+
+You see the Prosecutor's Claim and the full transcript. Decide:
+- CONFIRMED — the cited evidence establishes the accusation AND independent
+              corroboration on the SAME target exists in the transcript.
+- CONTESTED — the primary evidence is real but corroboration is missing/inconclusive.
+- REJECTED  — the cited evidence does NOT support the accusation.
+
+CORROBORATION RULE (the most important rule): to return CONFIRMED, the accused
+FullPath must be supported by at least TWO independent tool steps:
+  - the {primary} row showing the program (the FullPath), AND
+  - an independent signal naming the SAME FullPath (e.g. a yara hit on that path).
+If only one signal supports the cited target, the verdict MUST be CONTESTED.
+Adversaries plant execution-only artifacts with no corroborator; corroboration is
+what separates real evil from bait.
+
+HARD RULES:
+- Cite ONLY step_ids in the transcript. Use the EXACT stdout_hash from the transcript.
+- challenge_text must (a) name the primary signal, (b) state whether corroboration is
+  present and from which step_id, and (c) state the verdict.
+
+Respond with STRICT JSON matching this shape and nothing else:
+""" + VERDICT_JSON_SCHEMA_HINT
+
+PREFETCH_DEFENDER = _EXEC_DEFENDER.replace("{primary}", "Prefetch CSV")
+AMCACHE_DEFENDER = _EXEC_DEFENDER.replace("{primary}", "Amcache CSV")
+
+# template -> (prosecutor_system, defender_system); absent -> use the defaults above.
+FORGE_PROMPTS: dict[str, tuple[str, str]] = {
+    "prefetch": (PREFETCH_PROSECUTOR, PREFETCH_DEFENDER),
+    "amcache": (AMCACHE_PROSECUTOR, AMCACHE_DEFENDER),
+}
+
+
+def forge_prompts_for(template: str) -> tuple[str | None, str | None]:
+    """Return (prosecutor_system, defender_system) for a Forge template, or
+    (None, None) to use the default MFT/timestomp prompts (timestomp, registry,
+    multi_artifact, browser — already handled by the defaults)."""
+    return FORGE_PROMPTS.get(template, (None, None))
+
+
 @dataclass
 class CourtRunResult:
     case_id: str

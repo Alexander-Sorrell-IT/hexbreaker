@@ -82,7 +82,7 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 
 ## What's next
 
-- Per-template prompt tuning to close the prefetch/amcache target-format scoring gap (the agent confirms the right artifact but emits a short name vs the answer-key's full path)
+- Wider real-disk NIST coverage beyond the recycle-bin question (currently 1 of ~31), via the FSM path
 - N=50 sweeps for tight stdev intervals
 - Multi-template leaderboard (Court vs naive-LLM baseline)
 - Witness LLM reasoning (v1 records the call; v2 does the independent investigation)

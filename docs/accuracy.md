@@ -319,7 +319,7 @@ Forge optionally plants timestomp-signature MFT rows with no yara corroboration.
 
 | Gap | Plan |
 |---|---|
-| `prefetch`/`amcache` target-format scoring gap (agent confirms the right artifact but emits a short name vs the answer-key's full path) | Per-template prompt tuning, post-submission |
+| ~~`prefetch`/`amcache` target-format scoring gap~~ **CLOSED 2026-06-06** | Root cause: the sweep ran every template through the timestomp-only default prompt, so prefetch/amcache emitted the wrong `artifact_kind`. Fixed with per-artifact prompts (`forge_prompts_for`, `court_runner.py`). Signed re-sweep [`sweeps/2026-06-06_breadth_perprompt_signed.json`](../sweeps/2026-06-06_breadth_perprompt_signed.json): **prefetch F1 1.0, amcache F1 1.0** (normal), browser F1 0.6; `fp_planted = 0/60`; 60/60 chain+HMAC. Breadth normal mean **0.30 → 0.87**. |
 | Wider real-disk NIST coverage (currently the recycle-bin Q28 only, 1 of ~31 question-families) | Post-submission, via the FSM path only (never the withdrawn injected pipeline) |
 | marez8505/find-evil and Valhuntir head-to-heads | marez8505 is Anthropic-locked (not runnable under the DeepSeek-only constraint); Valhuntir is human-in-loop (different category, MIT HMAC pattern borrowed with attribution) |
 | Larger N per template (target N=50) for tighter stdev | Post-submission |

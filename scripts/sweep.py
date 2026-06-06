@@ -32,7 +32,7 @@ from hexbreaker.forge import (
     template_timestomp,
 )
 from hexbreaker.forge.case import load_case
-from hexbreaker.runner.court_runner import run_court_on_case
+from hexbreaker.runner.court_runner import forge_prompts_for, run_court_on_case
 from hexbreaker.scorer.exact_match import FindingClass, score
 from hexbreaker.transcript import verify
 
@@ -61,8 +61,12 @@ def run_one(
         shutil.rmtree(case_dir)
     TEMPLATES[template](seed, case_dir, provocateur=provocateur)
     t0 = time.monotonic()
+    # Non-timestomp templates (prefetch, amcache) need their own artifact prompt so the
+    # agent emits the right (artifact_kind, target); others use the defaults.
+    pros, defe = forge_prompts_for(template)
     try:
-        result = run_court_on_case(case_dir, client=client, max_rounds=max_rounds)
+        result = run_court_on_case(case_dir, client=client, max_rounds=max_rounds,
+                                   prosecutor_system=pros, defender_system=defe)
         wall = time.monotonic() - t0
         ok, reason = verify(result.transcript_path)
         # run_court_on_case signs the transcript when HEXBREAKER_HMAC_PASSWORD is
