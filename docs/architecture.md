@@ -46,6 +46,27 @@ Two products in one repo:
 
 No prompt-based safety boundaries. Every guardrail is enforceable in Python.
 
+### Tested for bypass
+
+Each boundary above has a paired test that *attempts the bypass and asserts it fails*
+(the criterion's "tested for bypass" prong). Full index: [`tests/bypass/README.md`](../tests/bypass/README.md).
+
+| Boundary / guardrail | Bypass test (attempt → rejected) |
+|---|---|
+| Fabricated step_id citation | `test_validator.py::test_verdict_rejected_on_fabricated_step_id` |
+| Hash-substitution on a cited step | `test_validator.py::test_verdict_rejected_on_hash_substitution` |
+| Verdict before observing a tool (FSM) | `test_orchestrator.py::test_premature_verdict_is_rejected_but_session_stays_open` |
+| Transcript content tampering | `test_transcript.py::test_verify_detects_content_tampering` |
+| Sidecar-byte tampering | `test_transcript.py::test_verify_detects_sidecar_byte_tampering` |
+| Full-chain recompute forgery | `test_hmac_chain.py::test_hmac_detects_full_chain_recompute_forgery` |
+| Single-tool CONFIRM (corroboration) | `test_judge.py::test_jr01_downgrades_confirmed_with_single_tool` |
+| Provocateur leak echoed in a verdict | `test_provocateur.py::test_jr02_downgrades_when_challenge_text_echoes_leak_token` |
+| Path traversal in case `mock_outputs` | `test_forge_case.py::test_mock_outputs_rejects_dot_dot_traversal` |
+| Path traversal via transcript sidecar | `test_security_transcript.py::test_render_transcript_refuses_traversal_stdout_path` |
+| Poisoned pre-existing transcript in case dir | `test_security_transcript.py::test_run_court_refuses_preexisting_transcript_in_case_dir` |
+| Unsupported/destructive tool name | `test_tools.py::test_run_tool_rejects_unsupported_tool` |
+| Schema bypass (extra fields / bad ids) | `test_schema.py::test_verdict_extras_rejected` |
+
 ## Data flow on a single Court round
 
 ```
