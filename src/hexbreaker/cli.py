@@ -19,6 +19,7 @@ from .forge import (
 )
 from .forge.case import AnswerKey
 from .registry.bundle import issue as registry_issue
+from .registry.score import score_submission
 from .registry.store import Store
 from .runner.court_runner import run_court_on_case
 from .scorer.exact_match import score
@@ -217,6 +218,28 @@ def registry_issue_cmd(k: int, templates: str, provocateur_frac: float, out: str
     click.echo(f"  cases: {k}")
     click.echo(f"  bundle: {out}")
     click.echo(f"  store: {store_path}")
+
+
+@registry.command(name="score")
+@click.option("--submission", required=True, help="Submission id to score.")
+@click.option(
+    "--transcripts",
+    type=click.Path(exists=True),
+    required=True,
+    help="Dir of submitted runs: case_<idx>/{transcript.jsonl,findings.json}.",
+)
+@click.option("--store", "store_path", type=click.Path(exists=True), default="./registry.db", help="Registry SQLite DB path.")
+def registry_score_cmd(submission: str, transcripts: str, store_path: str) -> None:
+    """Score a returned submission against its withheld answer keys.
+
+    Per case: verifies the transcript chain, DROPS findings whose citations fail
+    receipt validation (fabrications), then scores the survivors. Emits the
+    3-column scorecard as JSON.
+    """
+    store = Store(store_path)
+    card = score_submission(submission, transcripts, store)
+    store.close()
+    click.echo(orjson.dumps(card.model_dump(), option=orjson.OPT_INDENT_2).decode())
 
 
 if __name__ == "__main__":
