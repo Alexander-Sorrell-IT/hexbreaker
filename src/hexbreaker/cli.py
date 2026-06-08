@@ -19,6 +19,7 @@ from .forge import (
 )
 from .forge.case import AnswerKey
 from .registry.bundle import issue as registry_issue
+from .registry.scorecard import Scorecard, board_html
 from .registry.score import score_submission
 from .registry.store import Store
 from .runner.court_runner import run_court_on_case
@@ -238,8 +239,50 @@ def registry_score_cmd(submission: str, transcripts: str, store_path: str) -> No
     """
     store = Store(store_path)
     card = score_submission(submission, transcripts, store)
+    # Persist the scorecard so `board` can render it and `reveal` can flag it.
+    store.save_result(submission, card.model_dump_json())
     store.close()
     click.echo(orjson.dumps(card.model_dump(), option=orjson.OPT_INDENT_2).decode())
+
+
+@registry.command(name="board")
+@click.option("--store", "store_path", type=click.Path(exists=True), default="./registry.db", help="Registry SQLite DB path.")
+@click.option("--out", type=click.Path(), required=True, help="Output HTML board file.")
+def registry_board_cmd(store_path: str, out: str) -> None:
+    """Render every scored submission to a single self-contained HTML board."""
+    store = Store(store_path)
+    results = store.list_results()
+    store.close()
+    cards = [
+        (Scorecard.model_validate_json(r.scorecard_json), bool(r.revealed))
+        for r in results
+    ]
+    Path(out).write_text(board_html(cards), encoding="utf-8")
+    click.echo(f"wrote board for {len(cards)} submission(s) -> {out}")
+
+
+@registry.command(name="reveal")
+@click.option("--submission", required=True, help="Submission id to reveal.")
+@click.option("--store", "store_path", type=click.Path(exists=True), default="./registry.db", help="Registry SQLite DB path.")
+def registry_reveal_cmd(submission: str, store_path: str) -> None:
+    """Reveal a scored submission's seeds (enables byte-identical replay).
+
+    Prints each case's withheld seed + template so anyone can regenerate the case
+    through the open-source Forge and confirm the issued evidence by sha256, and
+    sets results.revealed=1. Requires the submission to have been scored.
+    """
+    store = Store(store_path)
+    if store.get_result(submission) is None:
+        store.close()
+        raise click.UsageError(
+            f"submission {submission!r} has no scored result; run `registry score` first."
+        )
+    rows = store.get_cases(submission)
+    store.set_revealed(submission)
+    store.close()
+    click.echo(f"revealed submission {submission} ({len(rows)} cases)")
+    for r in rows:
+        click.echo(f"  case_{r.idx}: seed={r.seed} template={r.template}")
 
 
 if __name__ == "__main__":

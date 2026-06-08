@@ -62,6 +62,15 @@ class CaseRow:
     provocation_json: str
 
 
+@dataclass(frozen=True)
+class ResultRow:
+    """A scored submission's persisted scorecard + reveal flag."""
+
+    submission_id: str
+    scorecard_json: str
+    revealed: int
+
+
 class Store:
     """SQLite-backed registry store. One connection per instance."""
 
@@ -123,3 +132,54 @@ class Store:
             )
             for r in rows
         ]
+
+    # --- results: written by `score`, read by `board`, flagged by `reveal` (P4) ---
+
+    def save_result(self, submission_id: str, scorecard_json: str) -> None:
+        """Persist (or replace) a submission's scorecard. Preserves `revealed`."""
+        self._conn.execute(
+            "INSERT INTO results (submission_id, scorecard_json, revealed) "
+            "VALUES (?, ?, 0) "
+            "ON CONFLICT(submission_id) DO UPDATE SET scorecard_json = excluded.scorecard_json",
+            (submission_id, scorecard_json),
+        )
+        self._conn.commit()
+
+    def get_result(self, submission_id: str) -> ResultRow | None:
+        """Return the stored scorecard row for a submission, or None if unscored."""
+        r = self._conn.execute(
+            "SELECT submission_id, scorecard_json, revealed FROM results "
+            "WHERE submission_id = ?",
+            (submission_id,),
+        ).fetchone()
+        if r is None:
+            return None
+        return ResultRow(
+            submission_id=r["submission_id"],
+            scorecard_json=r["scorecard_json"],
+            revealed=r["revealed"],
+        )
+
+    def list_results(self) -> list[ResultRow]:
+        """Return every scored submission's result row (for `board`)."""
+        rows = self._conn.execute(
+            "SELECT r.submission_id, r.scorecard_json, r.revealed "
+            "FROM results r JOIN submissions s ON s.id = r.submission_id "
+            "ORDER BY s.created_ts"
+        ).fetchall()
+        return [
+            ResultRow(
+                submission_id=r["submission_id"],
+                scorecard_json=r["scorecard_json"],
+                revealed=r["revealed"],
+            )
+            for r in rows
+        ]
+
+    def set_revealed(self, submission_id: str) -> None:
+        """Flag a scored submission's seeds as revealed (enables replay)."""
+        self._conn.execute(
+            "UPDATE results SET revealed = 1 WHERE submission_id = ?",
+            (submission_id,),
+        )
+        self._conn.commit()

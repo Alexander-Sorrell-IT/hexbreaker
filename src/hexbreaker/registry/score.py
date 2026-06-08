@@ -93,6 +93,7 @@ def _score_one_case(
         findings_submitted=len(raw_findings),
         findings_dropped=dropped,
         findings_scored=len(surviving),
+        planted_offered=len(answer_key.planted),  # denominator for the Integrity bait rate
         chain_ok=chain_ok,
         hmac_checked=hmac_checked,
         hmac_ok=hmac_ok,
