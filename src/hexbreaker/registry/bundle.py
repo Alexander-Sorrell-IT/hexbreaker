@@ -28,13 +28,16 @@ answer key, and no expected_findings target substring in any issued file.
 
 from __future__ import annotations
 
+import secrets
 import shutil
+import tempfile
 from pathlib import Path
 
 import orjson
 
-from ..court.provocateur import Provocation
+from ..court.provocateur import Provocation, emit_provocation
 from ..forge.case import CaseManifest
+from .store import Store
 
 _JSON_OPTS = orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS
 
@@ -89,3 +92,68 @@ def write_sealed_bundle(
 
     # NOTE: answer_key.json is intentionally NOT copied. That is the seal.
     return out
+
+
+def issue(
+    seeds_or_k: int | list[int],
+    templates: list[str],
+    provocateur_frac: float,
+    out_dir: str | Path,
+    store: Store,
+) -> str:
+    """Issue K sealed bundles, recording the withheld keys server-side.
+
+    `seeds_or_k`: an int K → K freshly-drawn unpredictable seeds (the anti-gaming
+    property: the submitter cannot pre-compute against a seed they can't predict);
+    or an explicit list of seeds (used by tests for reproducibility).
+
+    For each case i: generate the FULL case (seed + answer key) into a system temp
+    dir OUTSIDE `out_dir`, precompute `emit_provocation(seed)`, write the SEALED
+    bundle to `out_dir/case_<i>/`, and record `(seed, template, answer_key_json,
+    provocation_json)` via `store`. The full case never touches `out_dir`, so the
+    answer key and real seed can only leak through a seal bug in this function
+    (the issue()-level analog of write_sealed_bundle's seal).
+
+    Returns the new submission id.
+    """
+    # Lazy import: cli.py imports this module to register the subcommand, and
+    # TEMPLATES is defined after that import block — a top-level import here would
+    # cycle. By call time both modules are fully loaded.
+    from ..cli import TEMPLATES
+
+    if isinstance(seeds_or_k, int):
+        seeds = [secrets.randbelow(2**31) for _ in range(seeds_or_k)]
+    else:
+        seeds = list(seeds_or_k)
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    # Deterministic provocateur assignment: the first round(frac*K) cases plant
+    # evidence. Round-robin the templates across cases.
+    k = len(seeds)
+    n_provoked = round(provocateur_frac * k)
+
+    submission_id = store.new_submission()
+
+    for idx, seed in enumerate(seeds):
+        template = templates[idx % len(templates)]
+        provocateur = idx < n_provoked
+        provocation = emit_provocation(seed)
+
+        with tempfile.TemporaryDirectory(prefix="hexbreaker_issue_") as tmp:
+            full_case = Path(tmp) / f"case_{idx}"
+            TEMPLATES[template](seed, full_case, provocateur=provocateur)
+            answer_key_json = (full_case / "answer_key.json").read_bytes().decode()
+            write_sealed_bundle(full_case, out / f"case_{idx}", provocation)
+
+        store.add_case(
+            submission_id=submission_id,
+            idx=idx,
+            seed=seed,
+            template=template,
+            answer_key_json=answer_key_json,
+            provocation_json=provocation.model_dump_json(),
+        )
+
+    return submission_id

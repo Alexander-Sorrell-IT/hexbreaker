@@ -18,6 +18,8 @@ from .forge import (
     template_timestomp,
 )
 from .forge.case import AnswerKey
+from .registry.bundle import issue as registry_issue
+from .registry.store import Store
 from .runner.court_runner import run_court_on_case
 from .scorer.exact_match import score
 from .transcript import verify
@@ -185,6 +187,36 @@ def trace_cmd(findings_path: str, transcript_path: str, as_json: bool) -> None:
 
 
 main.add_command(trace_cmd, name="trace")
+
+
+@main.group()
+def registry() -> None:
+    """Registry — issue sealed cases, score runs, publish a replayable board."""
+
+
+@registry.command(name="issue")
+@click.option("--k", type=int, required=True, help="Number of cases to issue.")
+@click.option(
+    "--templates",
+    default=",".join(sorted(TEMPLATES.keys())),
+    help="Comma-separated template ids to round-robin across the K cases.",
+)
+@click.option("--provocateur-frac", type=float, default=0.5, help="Fraction of cases that plant evidence.")
+@click.option("--out", type=click.Path(), required=True, help="Output bundle directory.")
+@click.option("--store", "store_path", type=click.Path(), default="./registry.db", help="Registry SQLite DB path.")
+def registry_issue_cmd(k: int, templates: str, provocateur_frac: float, out: str, store_path: str) -> None:
+    """Issue K sealed bundles and record the withheld keys server-side."""
+    tmpl_list = [t.strip() for t in templates.split(",") if t.strip()]
+    unknown = [t for t in tmpl_list if t not in TEMPLATES]
+    if unknown:
+        raise click.UsageError(f"unknown template(s): {', '.join(unknown)}")
+    store = Store(store_path)
+    submission_id = registry_issue(k, tmpl_list, provocateur_frac, out, store)
+    store.close()
+    click.echo(f"issued submission {submission_id}")
+    click.echo(f"  cases: {k}")
+    click.echo(f"  bundle: {out}")
+    click.echo(f"  store: {store_path}")
 
 
 if __name__ == "__main__":
