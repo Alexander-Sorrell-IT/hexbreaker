@@ -62,7 +62,12 @@ class CaseManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_id: str
-    seed: int
+    # Real int at generation time; None in an issued registry bundle. The seed is
+    # withheld from submitters because the Forge is open-source (MIT) — a leaked
+    # seed lets a submitter run `generate --seed N` locally and reconstruct the
+    # answer key. Registry-mode ships a precomputed provocation.json instead so the
+    # Provocateur (Layer 6) still fires without the seed. See PLAN_REGISTRY.md.
+    seed: int | None = None
     template: str
     description: str
     pre_pass_steps: list[ToolInvocation] = Field(default_factory=list)
@@ -123,6 +128,17 @@ class AnswerKey(BaseModel):
     expected_findings: list[ExpectedFinding] = Field(default_factory=list)
     decoys: list[ExpectedFinding] = Field(default_factory=list)
     planted: list[ExpectedFinding] = Field(default_factory=list)
+
+
+def load_manifest(case_dir: str | Path) -> CaseManifest:
+    """Read just the manifest from a case directory.
+
+    Used by the Court runner, which is forbidden from reading the answer key.
+    An issued registry bundle has NO answer_key.json (it's withheld for scoring),
+    so the runner must be able to load a case from the manifest alone.
+    """
+    d = Path(case_dir)
+    return CaseManifest.model_validate_json((d / "manifest.json").read_bytes())
 
 
 def load_case(case_dir: str | Path) -> tuple[CaseManifest, AnswerKey]:

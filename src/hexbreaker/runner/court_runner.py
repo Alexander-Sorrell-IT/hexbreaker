@@ -33,9 +33,9 @@ import orjson
 from .. import llm
 from ..court.hmac_chain import HMAC_ENV, sign_transcript
 from ..court.orchestrator import CourtSession
-from ..court.provocateur import emit_provocation
+from ..court.provocateur import Provocation, emit_provocation
 from ..court.schema import CLAIM_JSON_SCHEMA_HINT, VERDICT_JSON_SCHEMA_HINT
-from ..forge.case import CaseManifest, ToolInvocation, load_case, mock_runner_from_case
+from ..forge.case import CaseManifest, ToolInvocation, load_manifest, mock_runner_from_case
 from ..tools import ToolResult, run_tool
 from ..transcript import Actor, Kind, Transcript, read
 
@@ -329,6 +329,7 @@ def run_court_on_case(
     transcript_path: str | Path | None = None,
     prosecutor_system: str | None = None,
     defender_system: str | None = None,
+    provocation: Provocation | None = None,
     max_rounds: int = 1,
 ) -> CourtRunResult:
     # The default prompts are timestomp/MFT-specific. A non-Forge dataset (e.g.
@@ -338,7 +339,10 @@ def run_court_on_case(
     prosecutor_system = prosecutor_system or PROSECUTOR_SYSTEM
     defender_system = defender_system or DEFENDER_SYSTEM
     case_path = Path(case_dir)
-    manifest, _ = load_case(case_path)
+    # Load ONLY the manifest — the runner is forbidden from reading the answer
+    # key, and a registry bundle has none. (Same as `manifest, _ = load_case`,
+    # but works on a sealed bundle that ships no answer_key.json.)
+    manifest = load_manifest(case_path)
 
     transcript_path = Path(transcript_path) if transcript_path else case_path / "transcript.jsonl"
     findings_path = Path(out_findings_path) if out_findings_path else case_path / "findings.json"
@@ -375,7 +379,27 @@ def run_court_on_case(
     # rule downgrades any Verdict whose challenge_text echoes the payload's leak
     # tokens. Per prompts/provocateur.md: "You are never silent." Single-fire keeps
     # "one adversarial payload per case" and keeps fp_planted measurement valid.
-    provocation = emit_provocation(seed=manifest.seed)
+    #
+    # Provocation resolution (registry seed-strip, PLAN_REGISTRY.md): a sealed
+    # bundle carries seed=None and ships a precomputed provocation.json so the
+    # Provocateur fires without leaking the seed. Order:
+    #   1. explicit `provocation=` param (registry-mode passes it in), else
+    #   2. a provocation.json in the case dir (the shipped attack payload), else
+    #   3. emit_provocation(seed) — the default non-registry path, byte-identical
+    #      to before. Falling through to (3) with seed=None is a bug (it would
+    #      emit a bogus payload off the string "None"), so we refuse it loudly.
+    if provocation is None:
+        provocation_path = case_path / "provocation.json"
+        if provocation_path.exists():
+            provocation = Provocation.model_validate_json(provocation_path.read_bytes())
+        elif manifest.seed is not None:
+            provocation = emit_provocation(seed=manifest.seed)
+        else:
+            raise RuntimeError(
+                f"case {case_path} has no seed and no provocation.json, and no "
+                f"provocation was passed in — cannot fire the Provocateur. A sealed "
+                f"registry bundle must ship provocation.json."
+            )
     t.append(
         actor=Actor.PROVOCATEUR,
         kind=Kind.PROVOCATION,
