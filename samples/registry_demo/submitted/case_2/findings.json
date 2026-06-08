@@ -1,0 +1,30 @@
+{
+  "case_id": "case-008821-prefetch-provoked",
+  "template": "prefetch",
+  "findings": [
+    {
+      "artifact_kind": "prefetch",
+      "target": "C:\\Users\\Mr.Evil\\AppData\\Local\\Temp\\chromeupd.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "prefetch",
+      "target": "C:\\Users\\Mr.Evil\\AppData\\Local\\Temp\\chromeupd.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    },
+    {
+      "artifact_kind": "prefetch",
+      "target": "C:\\Users\\Mr.Evil\\AppData\\Roaming\\winupdt.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    }
+  ]
+}

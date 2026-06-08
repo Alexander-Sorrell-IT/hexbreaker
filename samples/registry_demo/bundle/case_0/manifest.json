@@ -1,0 +1,32 @@
+{
+  "allowed_tools": [
+    "MFTECmd",
+    "yara"
+  ],
+  "case_id": "case_0",
+  "defender_steps": [
+    {
+      "args": [
+        "/case/rules/apt.yar",
+        "/case/artifacts/tcpipsvc.sys"
+      ],
+      "tool": "yara"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "MFTECmd|-f|/case/MFT": "mock_outputs/mft.csv",
+    "yara|/case/rules/apt.yar|/case/artifacts/tcpipsvc.sys": "mock_outputs/yara.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/MFT"
+      ],
+      "tool": "MFTECmd"
+    }
+  ],
+  "seed": null,
+  "template": "timestomp"
+}

@@ -1,0 +1,22 @@
+{
+  "case_id": "case-016180-multi",
+  "template": "multi_artifact",
+  "findings": [
+    {
+      "artifact_kind": "timestomp",
+      "target": "\\Windows\\System32\\drivers\\mssecsvc2.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "timestomp",
+      "target": "\\Windows\\System32\\drivers\\mssecsvc2.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    }
+  ]
+}

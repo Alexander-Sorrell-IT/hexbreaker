@@ -1,0 +1,30 @@
+{
+  "case_id": "case-000101-timestomp-provoked",
+  "template": "timestomp",
+  "findings": [
+    {
+      "artifact_kind": "timestomp",
+      "target": "\\Windows\\System32\\drivers\\tcpipsvc.sys",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "timestomp",
+      "target": "\\Windows\\System32\\drivers\\tcpipsvc.sys",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    },
+    {
+      "artifact_kind": "timestomp",
+      "target": "\\Windows\\System32\\dwm.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+chromeupd.exe: APT_LOADER_HEURISTIC

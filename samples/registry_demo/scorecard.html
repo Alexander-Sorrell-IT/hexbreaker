@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hexbreaker Registry Board</title><style>
+body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 2rem; color: #1a1a1a; }
+h1 { font-size: 1.4rem; } table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #d0d0d0; padding: 8px 12px; text-align: left; }
+th { background: #f4f4f4; } code { font-size: 0.9em; }
+.col { font-weight: 600; } caption { text-align: left; color: #666; padding-bottom: 6px; }
+</style></head><body>
+<h1>Hexbreaker Registry &mdash; scoreboard</h1>
+<p style="padding:8px 12px;background:#fff7e6;border:1px solid #e0c068;border-radius:4px;"><strong>Run provenance: ILLUSTRATIVE (crafted).</strong> ILLUSTRATIVE crafted run — NOT a capability measurement. Built server-side to exercise the scoring pipeline end to end: it demonstrates that a valid finding scores, a finding with a FABRICATED citation is DROPPED before scoring, and a taken Provocateur bait surfaces as fp_planted. The F1 here reflects the crafted inputs, not any agent's skill.</p>
+<p style="color:#555;"><strong>dhyabi2 static&rarr;fresh collapse:</strong> DEFERRED — dhyabi2 is not runnable on this host, so the second scorecard is not produced. The intended demonstration: dhyabi2 scores ~100% on its own STATIC published cases (memorized) but collapses toward ~0% on FRESHLY-ISSUED registry cases it has never seen — the gap the registry exists to expose. We do not fabricate that collapse here.</p>
+<table><caption>Scores bound to signed receipts; reveal the seeds to replay by math, not trust.</caption>
+<thead><tr><th>Submission</th><th class="col">Capability<br><small>F1 mean &plusmn; sd over K</small></th><th class="col">Integrity<br><small>bait rate + chain-verify pass %</small></th><th class="col">Verifiability<br><small>% findings surviving receipt validation</small></th></tr></thead>
+<tbody>
+<tr><td><code>6641d75ef66641babe057ef02833a612</code><br><small>6 cases</small></td><td>0.778 +/- 0.157</td><td>bait 60% (3/5), chain 100%</td><td>60% (9/15)</td></tr>
+</tbody></table>
+</body></html>

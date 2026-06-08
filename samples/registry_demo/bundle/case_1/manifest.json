@@ -1,0 +1,36 @@
+{
+  "allowed_tools": [
+    "RECmd",
+    "EvtxECmd"
+  ],
+  "case_id": "case_1",
+  "defender_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/Microsoft-Windows-Sysmon%4Operational.evtx",
+        "--csv",
+        "/case/out"
+      ],
+      "tool": "EvtxECmd"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "EvtxECmd|-f|/case/Microsoft-Windows-Sysmon%4Operational.evtx|--csv|/case/out": "mock_outputs/sysmon_registry.csv",
+    "RECmd|-f|/case/hives/SOFTWARE|--kn|Microsoft\\Windows\\CurrentVersion\\Run": "mock_outputs/recmd_run.csv"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/hives/SOFTWARE",
+        "--kn",
+        "Microsoft\\Windows\\CurrentVersion\\Run"
+      ],
+      "tool": "RECmd"
+    }
+  ],
+  "seed": null,
+  "template": "registry_persistence"
+}

@@ -1,0 +1,3 @@
+TimeCreated,EventId,EventName,Image,TargetObject
+2026-03-26T05:19:00Z,13,RegistryEvent (Value Set),C:\Users\Public\AppData\malware.exe,HKLM\Software\Microsoft\Windows\CurrentVersion\Run\evil_persistence
+2024-11-09T00:00:00Z,13,RegistryEvent (Value Set),C:\Program Files (x86)\NVIDIA Corporation\Update Core\NvBackend.exe,HKLM\Software\Microsoft\Windows\CurrentVersion\Run\NvBackend

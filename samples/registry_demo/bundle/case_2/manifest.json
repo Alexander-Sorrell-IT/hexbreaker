@@ -1,0 +1,34 @@
+{
+  "allowed_tools": [
+    "PECmd",
+    "yara"
+  ],
+  "case_id": "case_2",
+  "defender_steps": [
+    {
+      "args": [
+        "/case/rules/loader.yar",
+        "/case/artifacts"
+      ],
+      "tool": "yara"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "PECmd|-d|/case/C/Windows/Prefetch|--csv|/case/out": "mock_outputs/prefetch.csv",
+    "yara|/case/rules/loader.yar|/case/artifacts": "mock_outputs/yara.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-d",
+        "/case/C/Windows/Prefetch",
+        "--csv",
+        "/case/out"
+      ],
+      "tool": "PECmd"
+    }
+  ],
+  "seed": null,
+  "template": "prefetch"
+}

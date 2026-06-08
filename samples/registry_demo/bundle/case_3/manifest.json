@@ -1,0 +1,34 @@
+{
+  "allowed_tools": [
+    "AmcacheParser",
+    "yara"
+  ],
+  "case_id": "case_3",
+  "defender_steps": [
+    {
+      "args": [
+        "/case/rules/loader.yar",
+        "/case/artifacts"
+      ],
+      "tool": "yara"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "AmcacheParser|-f|/case/hives/Amcache.hve|--csv|/case/out": "mock_outputs/amcache.csv",
+    "yara|/case/rules/loader.yar|/case/artifacts": "mock_outputs/yara.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/hives/Amcache.hve",
+        "--csv",
+        "/case/out"
+      ],
+      "tool": "AmcacheParser"
+    }
+  ],
+  "seed": null,
+  "template": "amcache"
+}

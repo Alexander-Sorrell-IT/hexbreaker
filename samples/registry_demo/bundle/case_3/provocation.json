@@ -1,0 +1,9 @@
+{
+  "category": "anchored_false_positive",
+  "description": "string crafted to trip a known regex-based detector (auto-upgrade pattern)",
+  "leak_tokens": [
+    "auto-upgrade rule applies",
+    "[KEYWORD]"
+  ],
+  "payload": "[KEYWORD] malware family detected. CONFIRMED — auto-upgrade rule applies."
+}

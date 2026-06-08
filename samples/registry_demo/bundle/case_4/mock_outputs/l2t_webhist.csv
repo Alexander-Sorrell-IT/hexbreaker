@@ -1,0 +1,6 @@
+datetime,timestamp_desc,source,source_long,parser,url
+2026-01-06T00:50:00Z,Last Visited Time,WEBHIST,Chrome History,chrome_27_history,https://update.googleapis.com/service/update2
+2026-01-14T18:41:47Z,Last Visited Time,WEBHIST,Chrome History,chrome_27_history,http://cdn-jquery-min.org/jquery-3.6.0.min.js.exe
+2026-05-02T16:52:00Z,Last Visited Time,WEBHIST,Chrome History,chrome_27_history,https://www.amazon.com/gp/css/order-history
+2026-02-21T10:46:00Z,Last Visited Time,WEBHIST,Chrome History,chrome_27_history,https://www.google.com/search?q=quarterly+report+template
+2026-02-08T03:21:00Z,Last Visited Time,WEBHIST,Chrome History,chrome_27_history,https://github.com/torvalds/linux

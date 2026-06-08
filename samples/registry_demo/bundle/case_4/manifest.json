@@ -1,0 +1,37 @@
+{
+  "allowed_tools": [
+    "bulk_extractor",
+    "log2timeline.py"
+  ],
+  "case_id": "case_4",
+  "defender_steps": [
+    {
+      "args": [
+        "--parsers",
+        "webhist",
+        "/case/plaso.body",
+        "/case/image.E01"
+      ],
+      "tool": "log2timeline.py"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "bulk_extractor|-E|url|-o|/case/be_out|/case/disk.dd": "mock_outputs/bulk_extractor_url.txt",
+    "log2timeline.py|--parsers|webhist|/case/plaso.body|/case/image.E01": "mock_outputs/l2t_webhist.csv"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-E",
+        "url",
+        "-o",
+        "/case/be_out",
+        "/case/disk.dd"
+      ],
+      "tool": "bulk_extractor"
+    }
+  ],
+  "seed": null,
+  "template": "browser"
+}

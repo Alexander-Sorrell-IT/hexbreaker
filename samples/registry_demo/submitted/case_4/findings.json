@@ -1,0 +1,22 @@
+{
+  "case_id": "case-027182-browser",
+  "template": "browser",
+  "findings": [
+    {
+      "artifact_kind": "browser",
+      "target": "http://cdn-jquery-min.org/jquery-3.6.0.min.js.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "browser",
+      "target": "http://cdn-jquery-min.org/jquery-3.6.0.min.js.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    }
+  ]
+}

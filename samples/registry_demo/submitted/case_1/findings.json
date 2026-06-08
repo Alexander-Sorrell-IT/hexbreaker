@@ -1,0 +1,30 @@
+{
+  "case_id": "case-004729-registry-provoked",
+  "template": "registry_persistence",
+  "findings": [
+    {
+      "artifact_kind": "persistence",
+      "target": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\svchosts_loader",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "persistence",
+      "target": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\svchosts_loader",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    },
+    {
+      "artifact_kind": "persistence",
+      "target": "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\MicrosoftTelemetry",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "case_id": "case-031337-amcache",
+  "template": "amcache",
+  "findings": [
+    {
+      "artifact_kind": "amcache",
+      "target": "C:\\Users\\Mr.Evil\\AppData\\Roaming\\winupdt.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-001"
+      ]
+    },
+    {
+      "artifact_kind": "amcache",
+      "target": "C:\\Users\\Mr.Evil\\AppData\\Roaming\\winupdt.exe",
+      "verdict": "CONFIRMED",
+      "cited_steps": [
+        "S-999"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "allowed_tools": [
+    "MFTECmd",
+    "RECmd",
+    "yara",
+    "EvtxECmd"
+  ],
+  "case_id": "case_5",
+  "defender_steps": [
+    {
+      "args": [
+        "/case/rules/apt.yar",
+        "/case/artifacts\\Windows\\System32\\drivers"
+      ],
+      "tool": "yara"
+    },
+    {
+      "args": [
+        "-f",
+        "/case/logs/Microsoft-Windows-Sysmon-Operational.evtx",
+        "--inc",
+        "13"
+      ],
+      "tool": "EvtxECmd"
+    }
+  ],
+  "description": "issued registry case (description withheld)",
+  "mock_outputs": {
+    "EvtxECmd|-f|/case/logs/Microsoft-Windows-Sysmon-Operational.evtx|--inc|13": "mock_outputs/evtx_registry.csv",
+    "MFTECmd|-f|/case/MFT": "mock_outputs/mft.csv",
+    "RECmd|-f|/case/hives/SOFTWARE|--kn|Microsoft\\Windows\\CurrentVersion\\Run": "mock_outputs/recmd_run.csv",
+    "yara|/case/rules/apt.yar|/case/artifacts\\Windows\\System32\\drivers": "mock_outputs/yara.txt"
+  },
+  "pre_pass_steps": [
+    {
+      "args": [
+        "-f",
+        "/case/MFT"
+      ],
+      "tool": "MFTECmd"
+    },
+    {
+      "args": [
+        "-f",
+        "/case/hives/SOFTWARE",
+        "--kn",
+        "Microsoft\\Windows\\CurrentVersion\\Run"
+      ],
+      "tool": "RECmd"
+    }
+  ],
+  "seed": null,
+  "template": "multi_artifact"
+}

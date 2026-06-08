@@ -1,0 +1,5 @@
+KeyPath,ValueName,ValueType,ValueData,LastWriteTimestamp
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,evil_persistence,REG_SZ,C:\Users\Public\AppData\malware.exe,2026-03-26T05:19:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,NvBackend,REG_SZ,C:\Program Files (x86)\NVIDIA Corporation\Update Core\NvBackend.exe,2024-11-09T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,Adobe Updater,REG_SZ,C:\Program Files (x86)\Common Files\Adobe\OOBE\PDApp\UWA\UpdaterStartupUtility.exe,2024-10-20T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,OneDrive,REG_SZ,C:\Users\Mr.Evil\AppData\Local\Microsoft\OneDrive\OneDrive.exe /background,2024-07-25T00:00:00Z

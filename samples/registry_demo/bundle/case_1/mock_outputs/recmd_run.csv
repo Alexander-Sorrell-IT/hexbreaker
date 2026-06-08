@@ -1,0 +1,8 @@
+KeyPath,ValueName,ValueType,ValueData,LastWriteTimestamp
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,MicrosoftTelemetry,REG_SZ,C:\Windows\Temp\mstelemetry.exe,2026-05-14T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,NvBackend,REG_SZ,C:\Program Files (x86)\NVIDIA Corporation\Update Core\NvBackend.exe,2024-12-01T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,Adobe Updater,REG_SZ,C:\Program Files (x86)\Common Files\Adobe\OOBE\PDApp\UWA\UpdaterStartupUtility.exe,2024-11-04T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,ChromeUpdater_2,REG_SZ,C:\Users\Mr.Evil\AppData\Local\Temp\chromeupd.exe,2026-02-12T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,svchosts_loader,REG_SZ,C:\ProgramData\svchosts.exe,2026-01-20T13:35:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,SecurityHealth,REG_SZ,C:\Windows\System32\SecurityHealthSystray.exe,2024-09-19T00:00:00Z
+HKLM\Software\Microsoft\Windows\CurrentVersion\Run,MicrosoftEdgeAutoLaunch,REG_SZ,C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe --no-startup-window,2024-09-14T00:00:00Z
