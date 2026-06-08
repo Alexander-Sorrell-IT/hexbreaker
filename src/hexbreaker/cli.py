@@ -8,6 +8,7 @@ import click
 import orjson
 
 from .court.hmac_chain import sign_transcript, verify_signature
+from .court.trace import trace_findings
 from .forge import (
     template_amcache,
     template_browser,
@@ -151,6 +152,39 @@ def sign_cmd(transcript_path: str) -> None:
 
 
 main.add_command(sign_cmd, name="sign")
+
+
+@click.command()
+@click.option("--findings", "findings_path", type=click.Path(exists=True), required=True, help="Findings JSON.")
+@click.option("--transcript", "transcript_path", type=click.Path(exists=True), required=True, help="Transcript file (JSONL) the findings cite.")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit the full trace report as JSON.")
+def trace_cmd(findings_path: str, transcript_path: str, as_json: bool) -> None:
+    """Trace each finding to the exact tool execution that produced it.
+
+    For every finding's cited step, resolves the tool_call record and re-hashes
+    its stdout sidecar, proving the conclusion rests on intact tool output. Exits
+    non-zero if any finding fails to trace (missing step, fabricated citation, or
+    tampered/absent sidecar). Run `verify` for chain/HMAC integrity.
+    """
+    report = trace_findings(findings_path, transcript_path)
+    if as_json:
+        click.echo(orjson.dumps(report.model_dump(), option=orjson.OPT_INDENT_2).decode())
+    else:
+        for ft in report.findings:
+            mark = "OK" if ft.ok else "FAIL"
+            click.echo(f"[{mark}] finding #{ft.index} {ft.verdict} {ft.artifact_kind} target={ft.target!r}")
+            for s in ft.cited_steps:
+                if s.ok:
+                    preview = (s.stdout_preview or "").splitlines()[0] if s.stdout_preview else ""
+                    click.echo(f"      {s.step_id} <- {s.tool} [{s.stdout_hash}]  {preview[:80]}")
+                else:
+                    click.echo(f"      {s.step_id} {s.code}: {s.detail}", err=True)
+        click.echo(f"traced {report.findings_ok}/{report.findings_total} findings: {'OK' if report.ok else 'FAIL'}")
+    if not report.ok:
+        raise SystemExit(1)
+
+
+main.add_command(trace_cmd, name="trace")
 
 
 if __name__ == "__main__":

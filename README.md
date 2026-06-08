@@ -130,9 +130,9 @@ src/hexbreaker/
 │   └── template_amcache.py
 ├── scorer/exact_match.py
 ├── runner/court_runner.py
-└── cli.py               # hexbreaker generate / run / score / verify / sign
+└── cli.py               # hexbreaker generate / run / score / verify / sign / trace
 
-tests/                   # 169 pass + 5 skipped (4 live + MCP); 178 pass with the [mcp] extra
+tests/                   # 173 pass + 5 skipped (4 live + MCP); ~182 pass with the [mcp] extra (derived from the 169→173 base; re-measure after `pip install -e .[mcp]`)
 docs/
 ├── architecture.md      # security boundaries + data flow
 ├── accuracy.md          # measured numbers + methodology
@@ -155,7 +155,7 @@ scripts/
 ## Tests
 
 ```bash
-PYTHONPATH=src python -m pytest -q      # 169 pass, 5 skipped (4 live + MCP suite), ~7 s
+PYTHONPATH=src python -m pytest -q      # 173 pass, 5 skipped (4 live + MCP suite), ~7 s
 HEXBREAKER_RUN_LIVE=1 pytest            # also runs the 4 live DeepSeek integration tests (needs API key)
 ```
 

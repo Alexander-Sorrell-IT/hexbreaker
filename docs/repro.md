@@ -34,6 +34,7 @@ this repo, so it is stated up front.
 | **run (Court)** | `hexbreaker run --agent court` | **No** — calls DeepSeek; output varies run-to-run | **Yes** | `cli.py:73` → `run_court_on_case(case, out)` → `client is None` branch → `llm.load_env()` + `DeepSeekClient()` (`court_runner.py:264-266`), which raises if `DEEPSEEK_API_KEY` is unset (`llm.py:97-99`). Empirical proof of non-determinism: the two committed N40 sweeps run the *same* command yet differ (normal 0.975 vs 0.95; provocateur 0.525 vs 0.475). |
 | **score** | `hexbreaker score` | **Yes** — pure set arithmetic over findings vs. answer key | No | `cli.py:84-90` reads two JSON files and calls `score(...)`; no client. Verified: scoring the committed `samples/sift_vm_run/` twice produced identical output (`tp=1, fp=0, fn=0, fp_planted=0, F1=1.0`). |
 | **verify** | `hexbreaker verify` | **Yes** — recomputes SHA-256 hash chain (+ optional HMAC) | No | `cli.py:111-129` → `transcript.verify()` / `verify_signature()`; no client. |
+| **trace** | `hexbreaker trace` | **Yes** — re-joins findings → cited steps → re-hashed sidecar bytes | No | `cli.py` `trace_cmd` → `court/trace.py:trace_findings()`; no client. Verified: `--findings samples/nist_fsm_run/run1/findings.json --transcript …/transcript.jsonl` traces 4/4 findings to the `fls`/`icat` output that produced them; a one-byte sidecar edit flips it to `sidecar_mismatch` and exit 1 (`tests/test_trace.py`). |
 
 **Therefore:**
 
