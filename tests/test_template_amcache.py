@@ -111,12 +111,15 @@ def test_disjoint_across_many_seeds(tmp_path: Path) -> None:
 
 
 def test_expected_target_corroborated_by_two_distinct_tools(tmp_path: Path) -> None:
-    """JR-01 honesty: the true target is named by >=2 distinct tool kinds.
+    """JR-01 honesty: the true target is evidenced by >=2 distinct tool kinds.
 
-    AmcacheParser's FullPath IS the contiguous target and yara reports the same
-    file path, so BOTH stdouts contain the full target verbatim. This is the
-    data that lets the Defender honestly cite primary + corroborator for an
-    honest CONFIRMED (JR-01 counts distinct cited tool KINDS).
+    AmcacheParser's FullPath IS the contiguous target (primary names the full
+    path). yara honestly reports the matched file by its BASENAME — so it
+    evidences the SAME target via its distinguishing leaf component, NOT the full
+    contiguous path. (Naming the basename keeps the full target string out of the
+    sealed registry bundle; see the cheat-resistance invariant + template_timestomp
+    precedent.) This is the data that lets the Defender honestly cite primary +
+    corroborator for an honest CONFIRMED (JR-01 counts distinct cited tool KINDS).
     """
     case_dir = tmp_path / "case"
     manifest = template_amcache.generate(seed=8821, out_dir=case_dir)
@@ -129,11 +132,15 @@ def test_expected_target_corroborated_by_two_distinct_tools(tmp_path: Path) -> N
     ]
 
     ef = answer.expected_findings[0]
-    naming = {tool for tool, text in tool_stdouts if ef.target in text}
-    assert "AmcacheParser" in naming, "AmcacheParser must name the target FullPath"
-    assert "yara" in naming, "yara must name the same target FullPath"
-    assert len(naming) >= 2, (
-        f"expected target {ef.target!r} named by tools {naming} "
+    leaf = ef.target.rsplit("\\", 1)[1]
+    naming_full = {tool for tool, text in tool_stdouts if ef.target in text}
+    naming_leaf = {
+        tool for tool, text in tool_stdouts if leaf in text and ef.target not in text
+    }
+    assert "AmcacheParser" in naming_full, "AmcacheParser must name the target FullPath"
+    assert "yara" in naming_leaf, "yara must name the target basename (not the full path)"
+    assert len(naming_full | naming_leaf) >= 2, (
+        f"expected target {ef.target!r} evidenced by tools {naming_full | naming_leaf} "
         f"(need >=2 distinct tool kinds for an honest CONFIRMED under JR-01)"
     )
 
@@ -196,17 +203,20 @@ def test_no_planted_without_provocateur(tmp_path: Path) -> None:
 
 
 def test_yara_hits_only_the_true_target(tmp_path: Path) -> None:
-    """yara names exactly the true target and nothing else (no false hits)."""
+    """yara names exactly the true target (by basename) and nothing else."""
     case_dir = tmp_path / "case"
     template_amcache.generate(seed=8821, out_dir=case_dir, provocateur=True)
     _, answer = load_case(case_dir)
     yara = _read_mock(case_dir, "yara.txt")
+    # yara names the matched file by basename (cheat-resistance: the full target
+    # path must not appear contiguously in the issued bundle).
     target = answer.expected_findings[0].target
-    assert target in yara
+    assert target.rsplit("\\", 1)[1] in yara
+    assert target not in yara, "full path must NOT leak into yara"
     for d in answer.decoys:
-        assert d.target not in yara
+        assert d.target.rsplit("\\", 1)[1] not in yara
     for p in answer.planted:
-        assert p.target not in yara
+        assert p.target.rsplit("\\", 1)[1] not in yara
 
 
 def test_all_tools_supported_and_allowed(tmp_path: Path) -> None:

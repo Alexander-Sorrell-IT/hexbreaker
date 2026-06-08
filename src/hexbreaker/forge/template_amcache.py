@@ -161,11 +161,15 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     amcache_csv = (header + "".join(rows)).encode()
 
     # ----- Synthesize yara output (corroborator). -----
-    # yara honestly emits the path of the file whose CONTENT matched a rule, so
-    # it names the SAME FullPath. ONLY the true evil binary is hit; decoys and
-    # any plant are NOT hit (no corroboration). One honest line, no padding — a
-    # benign yara "hit" would falsely mark a decoy malicious, which is dishonest.
-    yara_hit = f"APT_LOADER_HEURISTIC {evil_path}\n".encode()
+    # yara honestly reports the file whose CONTENT matched a rule. ONLY the true
+    # evil binary is hit; decoys and any plant are NOT hit (no corroboration). One
+    # honest line, no padding — a benign yara "hit" would falsely mark a decoy
+    # malicious. yara names the matched file by its BASENAME, not its full
+    # contiguous path: this keeps the honest join (basename -> AmcacheParser
+    # FullPath column) while keeping the full target string out of the sealed
+    # bundle contiguously (the registry cheat-resistance invariant; same
+    # column-split posture as the timestomp template).
+    yara_hit = f"{evil_name}: APT_LOADER_HEURISTIC\n".encode()
 
     (out / "mock_outputs" / "amcache.csv").write_bytes(amcache_csv)
     (out / "mock_outputs" / "yara.txt").write_bytes(yara_hit)
@@ -174,9 +178,11 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
         tool="AmcacheParser",
         args=["-f", "/case/hives/Amcache.hve", "--csv", "/case/out"],
     )
+    # yara scans a target-INDEPENDENT directory (never the evil path) so the
+    # manifest's defender_steps args and the mock_outputs key carry no answer.
     yara_call = ToolInvocation(
         tool="yara",
-        args=["/case/rules/loader.yar", evil_path],
+        args=["/case/rules/loader.yar", "/case/artifacts"],
     )
 
     manifest = CaseManifest(

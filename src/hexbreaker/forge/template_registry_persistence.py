@@ -115,10 +115,20 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # corroborating event; decoys and any plant do NOT (no second-tool signal on
     # the key), so genuine per-target corroboration (RECmd value name + EvtxECmd
     # TargetObject) distinguishes the true finding under JR-01/JR-01b.
+    #
+    # Include ONE benign Value-Set row (a decoy Run key whose Sysmon event is a
+    # legitimate write) so the corroborator is NOT a single-row giveaway: a reader
+    # who just echoes the only TargetObject in this file no longer extracts the
+    # answer — distinguishing evil from benign still requires cross-referencing the
+    # suspicious binary path in the RECmd primary. Mirrors multi_artifact's
+    # registry leg. The benign row's key is a decoy (REJECTED), never the answer.
+    benign_decoy_name = decoys[0][0]
     evtx_header = "EventId,EventType,UtcTime,Image,TargetObject,Details\n"
     evtx_rows = (
         f"13,SetValue,{_iso(evil_last_write)},{evil_path},{evil_target},"
         f"REG_SZ {evil_path}\n"
+        f"13,SetValue,{_iso(decoys[0][2])},{decoys[0][1]},"
+        f"{RUN_KEY_PATH}\\{benign_decoy_name},REG_SZ {decoys[0][1]}\n"
     )
     evtx_out = (evtx_header + evtx_rows).encode()
 

@@ -30,6 +30,11 @@ from hexbreaker.registry.bundle import write_sealed_bundle
 from hexbreaker.runner.court_runner import run_court_on_case
 from hexbreaker.transcript import Kind, read
 
+# Every template `registry issue` can emit (mirrors cli.TEMPLATES). The Phase-1
+# cheat test MUST cover all of them — exercising only timestomp masked the leak
+# the adversarial verifier found in the other five.
+from hexbreaker.cli import TEMPLATES
+
 _SEED = 4729
 
 _TOOL_RE = re.compile(r"(S-\d+) \| TOOL \| tool_call \| meta=(\{[^}]*\})")
@@ -177,6 +182,128 @@ def test_generate_is_impossible_without_the_seed(tmp_path: Path) -> None:
     _full, sealed, _prov = _seal(tmp_path)
     m = CaseManifest.model_validate_json((sealed / "manifest.json").read_bytes())
     assert m.seed is None  # nothing to pass to template_*.generate(seed=...)
+
+
+# === Cheat-resistance across EVERY issued template (static bundle inspection) ===
+#
+# The literal invariant "no expected_findings target substring appears anywhere
+# in the issued files" is only satisfiable when the primary artifact splits the
+# target across columns (timestomp: FileName + ParentPath). For a single-column
+# primary (prefetch/amcache FullPath; browser URL) the target MUST appear
+# contiguously in the evidence — the agent cannot investigate a path it never
+# sees. So the achievable, verifier-aligned invariant is two-part:
+#
+#   (M) MANIFEST = zero target leakage. The full target string must not appear
+#       anywhere in manifest.json — not in defender_steps[].args, not in the
+#       mock_outputs keys, not in case_id/description. Metadata is not evidence;
+#       a non-LLM script reading `manifest.json` must extract no answer.
+#
+#   (E) EVIDENCE = target never UNIQUELY extractable. In every evidence file
+#       where the full target appears contiguously, at least one same-kind decoy
+#       (or planted) target also appears. No single file is a 1:1 giveaway, so
+#       selecting the true target still requires cross-referencing >=2 sources
+#       plus the suspicious-path/maliciousness heuristic — i.e. forensic
+#       reasoning, not copy-the-string.
+#
+# This is exactly the posture template_browser already had (target among 4 decoy
+# URLs in both tools). The Phase-1 repair makes prefetch/amcache/registry_
+# persistence/multi_artifact match it: yara names the matched file by BASENAME
+# (not the full path), yara scans a target-independent dir (so manifest args /
+# mock_outputs keys carry no answer), and single-row corroborators gain a benign
+# decoy row. timestomp is the blessed precedent (column-split primary).
+
+_SEEDS = [101, 4729, 8821, 31337]
+
+
+def _seal_template(template: str, seed: int, tmp_path: Path) -> tuple[Path, Path]:
+    """Generate a provocateur case for `template` at `seed` and seal it.
+
+    Returns (full_case_dir_with_answer_key, sealed_bundle_dir). Uses
+    provocateur=True so planted entries are present too (the strongest decoys).
+    """
+    full = tmp_path / f"full_{template}_{seed}"
+    TEMPLATES[template](seed, full, provocateur=True)
+    prov = emit_provocation(seed=seed)
+    sealed = write_sealed_bundle(full, tmp_path / f"bundle_{template}_{seed}", prov)
+    return full, sealed
+
+
+def _escaped_forms(s: str) -> set[bytes]:
+    """Raw bytes + the JSON-string-escaped bytes (orjson doubles backslashes)."""
+    b = s.encode()
+    return {b, b.replace(b"\\", b"\\\\")}
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+@pytest.mark.parametrize("seed", _SEEDS)
+def test_manifest_leaks_no_target(template: str, seed: int, tmp_path: Path) -> None:
+    """(M) No expected-findings target string appears anywhere in manifest.json.
+
+    Catches the worst defect the verifier found: the yara invocation embedding
+    evil_path in defender_steps[].args (and thus in the mock_outputs key), which
+    let a script read the answer straight out of the sealed manifest.
+    """
+    full, sealed = _seal_template(template, seed, tmp_path)
+    _, answer = load_case(full)
+    manifest_bytes = (sealed / "manifest.json").read_bytes()
+    for ef in answer.expected_findings:
+        for needle in _escaped_forms(ef.target):
+            assert needle not in manifest_bytes, (
+                f"[{template} seed={seed}] target {ef.target!r} leaked into the "
+                f"sealed manifest.json (as {needle!r}) — a non-LLM script reading "
+                f"manifest.json would extract the answer"
+            )
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+@pytest.mark.parametrize("seed", _SEEDS)
+def test_evidence_target_never_uniquely_extractable(
+    template: str, seed: int, tmp_path: Path
+) -> None:
+    """(E) In every evidence file carrying the target contiguously, a same-kind
+    decoy/planted target also appears — so no single file is a 1:1 giveaway.
+
+    A trivial 'echo the only path named in the corroborator' script must NOT
+    score F1=1.0: the true target is never the lone occupant of any evidence file.
+    """
+    full, sealed = _seal_template(template, seed, tmp_path)
+    _, answer = load_case(full)
+    evidence_files = sorted((sealed / "mock_outputs").glob("*"))
+    assert evidence_files, f"[{template}] sealed bundle has no mock_outputs"
+
+    for ef in answer.expected_findings:
+        same_kind_distractors = [
+            d.target
+            for d in (answer.decoys + answer.planted)
+            if d.artifact_kind == ef.artifact_kind
+        ]
+        assert same_kind_distractors, (
+            f"[{template} seed={seed}] no same-kind distractor for {ef.target!r}"
+        )
+        for f in evidence_files:
+            body = f.read_text(errors="replace")
+            if ef.target in body:
+                # This file names the true target contiguously — it MUST also
+                # carry at least one same-kind distractor, or it is a 1:1 leak.
+                co_occurring = [d for d in same_kind_distractors if d in body]
+                assert co_occurring, (
+                    f"[{template} seed={seed}] evidence file {f.name} names the "
+                    f"true target {ef.target!r} with NO same-kind decoy present — "
+                    f"a 1:1 giveaway a non-LLM script could echo for F1=1.0"
+                )
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+@pytest.mark.parametrize("seed", _SEEDS)
+def test_sealed_bundle_seal_holds_for_every_template(
+    template: str, seed: int, tmp_path: Path
+) -> None:
+    """The structural seal (no answer key, seed=None) holds for every template."""
+    _full, sealed = _seal_template(template, seed, tmp_path)
+    assert not (sealed / "answer_key.json").exists()
+    assert (sealed / "provocation.json").exists()
+    m = CaseManifest.model_validate_json((sealed / "manifest.json").read_bytes())
+    assert m.seed is None
 
 
 # === Provocation-injection parity (registry-mode == seeded run) ===

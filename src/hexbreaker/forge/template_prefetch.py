@@ -145,7 +145,13 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # ----- Synthesize yara output (corroborator). -----
     # ONLY the true evil binary is hit; decoys and any plant are NOT hit. One
     # honest line, no padding — a benign yara "hit" would falsely mark a decoy.
-    yara_hit = f"APT_LOADER_HEURISTIC {evil_path}\n".encode()
+    # yara names the matched file by its BASENAME, not its full contiguous path
+    # (real yara prints the rule + the scanned filename). This keeps the honest
+    # corroboration — the agent joins this basename to the PECmd FullPath column —
+    # WITHOUT leaking the full target string contiguously into the sealed bundle
+    # (the registry cheat-resistance invariant; same column-split posture as the
+    # timestomp template, which is the blessed precedent).
+    yara_hit = f"{evil_name}: APT_LOADER_HEURISTIC\n".encode()
 
     (out / "mock_outputs" / "prefetch.csv").write_bytes(pecmd_csv)
     (out / "mock_outputs" / "yara.txt").write_bytes(yara_hit)
@@ -154,9 +160,11 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
         tool="PECmd",
         args=["-d", "/case/C/Windows/Prefetch", "--csv", "/case/out"],
     )
+    # yara scans a target-INDEPENDENT directory (never the evil path) so the
+    # manifest's defender_steps args and the mock_outputs key carry no answer.
     yara_call = ToolInvocation(
         tool="yara",
-        args=["/case/rules/loader.yar", evil_path],
+        args=["/case/rules/loader.yar", "/case/artifacts"],
     )
 
     manifest = CaseManifest(

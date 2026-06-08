@@ -209,10 +209,13 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     recmd_csv = (recmd_header + "".join(recmd_rows)).encode()
 
     # ----- Synthesize yara output (timestomp corroborator). -----
-    # yara honestly emits FILE PATHS. Name the FULL contiguous driver path so the
-    # answer-key target appears verbatim. ONLY the true timestomp target is named;
-    # the planted driver is NOT scanned/hit (no corroboration).
-    yara_hit = f"APT_DRIVER_HEURISTIC {timestomp_target}\n".encode()
+    # yara honestly reports the matched file by its BASENAME (rule + scanned
+    # filename), not its full contiguous path. ONLY the true timestomp target is
+    # named; the planted driver is NOT scanned/hit (no corroboration). Naming the
+    # basename keeps the honest join (basename -> MFT FileName/ParentPath columns)
+    # while keeping the full target path out of the sealed bundle contiguously
+    # (the registry cheat-resistance invariant; same posture as template_timestomp).
+    yara_hit = f"{evil_driver_name}: APT_DRIVER_HEURISTIC\n".encode()
 
     # ----- Synthesize EvtxECmd output (persistence corroborator). -----
     # Sysmon EventID 13 (RegistryEvent: Value Set) honestly emits the full

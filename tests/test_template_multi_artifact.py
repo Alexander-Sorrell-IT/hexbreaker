@@ -136,15 +136,19 @@ def test_each_expected_target_corroborated_by_two_distinct_tools(tmp_path: Path)
 
     for ef in answer.expected_findings:
         leaf = ef.target.rsplit("\\", 1)[1]
-        # Corroborator(s): tools whose stdout contains the FULL contiguous target.
+        # Corroborator(s)/primary(ies): tools whose stdout contains the FULL
+        # contiguous target vs. only its distinguishing leaf component.
+        #
+        # timestomp leg: BOTH tools name the target by leaf (MFT splits
+        #   FileName/ParentPath; yara names the basename — cheat-resistance keeps
+        #   the full driver path out of the bundle). No tool is contiguous.
+        # persistence leg: EvtxECmd's RegistryEvent TargetObject IS the full
+        #   contiguous Run key (corroborator); RECmd splits it (primary, leaf).
         contiguous = {tool for tool, text in tool_stdouts if ef.target in text}
-        # Primary(ies): tools whose stdout contains the distinguishing leaf but
-        # NOT the full contiguous target (the split-column source).
         leaf_only = {
             tool for tool, text in tool_stdouts if leaf in text and ef.target not in text
         }
         distinct = contiguous | leaf_only
-        assert len(contiguous) >= 1, f"{ef.target!r}: no contiguous corroborator"
         assert len(distinct) >= 2, (
             f"expected target {ef.target!r} evidenced by tools {distinct} "
             f"(need >=2 distinct tool kinds for an honest CONFIRMED under JR-01)"
@@ -166,7 +170,10 @@ def test_timestomp_corroborator_is_yara_persistence_is_evtx(tmp_path: Path) -> N
     yara = _read_mock(case_dir, "yara.txt")
     evtx = _read_mock(case_dir, "evtx_registry.csv")
 
-    assert ts_target in yara, "yara must name the timestomp file path"
+    # yara names the timestomp file by basename (cheat-resistance: the full driver
+    # path must not appear contiguously in the issued bundle).
+    assert ts_target.rsplit("\\", 1)[1] in yara, "yara must name the timestomp file basename"
+    assert ts_target not in yara, "full timestomp path must NOT leak contiguously into yara"
     assert pers_target in evtx, "EvtxECmd must name the persistence registry key"
     # Honesty: yara (file scanner) must NOT contain the registry key path.
     assert pers_target not in yara, "yara must not fabricate a registry key path"
