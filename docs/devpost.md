@@ -1,21 +1,27 @@
 # Hexbreaker — Devpost submission
 
-*Two products in one repo:* a **5-role adversarial DFIR Court** that finds evil under hackathon constraints, and a **generative benchmark (Forge)** that lets the community honestly measure ANY DFIR agent on cases the agent has never seen.
+*Two products in one repo:* **Hexbreaker Forge** — the **Accuracy Benchmarking Framework** the Find Evil! brief asks for ([starter idea #5](https://findevil.devpost.com/)) — and **Hexbreaker Court**, the 5-role adversarial DFIR agent built on top, graded by Forge like any other agent. Forge lets the community honestly measure ANY DFIR agent on cases the agent has never seen.
 
 ---
 
 ## Inspiration
 
-Every DFIR-agent paper, repo, and demo we read for this hackathon scored 100% F1 on the **same one dataset** — NIST's CFReDS "Mr. Evil" Hacking Case. We independently verified the strongest visible competitor (`dhyabi2/findevil`) and found their 100% holds **only on their original (model, OS, scaffolding) tuple** (Gemma 4 31B + SIFT VM + 400 lines of NIST-specific extraction code). Swap any axis — to DeepSeek, to Ubuntu, to an unseen case — and their pipeline returns 0% F1.
+The Find Evil! brief is blunt about why this hackathon exists: *"Protocol SIFT works. It also hallucinates more than we'd like. (That's exactly why this hackathon exists.)"* And in the starter ideas, the organizers name the missing piece outright — **idea #5, the Accuracy Benchmarking Framework:**
 
-That's not a methodology indictment; it's a **dataset saturation problem.** When a community converges on one ground-truth corpus, agents converge on its idiosyncrasies. Hexbreaker is built on the premise that the field needs both:
+> *"Create a test harness that runs … against known-good data with documented ground truth, then scores accuracy, false positive rates, and hallucination frequency. **The community needs this benchmark to measure progress.**"* — Find Evil! starter idea #5
 
-1. an agent that survives the move to a new (model, OS, case) combination, and
-2. infrastructure that generates new cases on demand, so saturation is impossible.
+**Hexbreaker Forge IS that framework.** We built it because the field's accuracy problem is structural, and we could prove it: every DFIR-agent paper, repo, and demo we read for this hackathon scored 100% F1 on the **same one dataset** — NIST's CFReDS "Mr. Evil" Hacking Case. We independently re-measured the strongest visible competitor (`dhyabi2/findevil`) and found their 100% holds **only on their original (model, OS, scaffolding) tuple** (Gemma 4 31B + SIFT VM + 400 lines of NIST-specific extraction code). Swap any axis — to DeepSeek, to Ubuntu — and the same code returns 0% F1.
+
+That's not a methodology indictment; it's a **dataset saturation problem.** When a community converges on one ground-truth corpus, agents converge on its idiosyncrasies, and "F1 = 100%" stops meaning what people think it means. You cannot measure progress on a benchmark everyone has overfit. So idea #5 needs two things at once:
+
+1. **infrastructure that generates new cases on demand**, so no agent — author, judge, or future researcher — has seen the case before (that's **Forge**); and
+2. **an agent worth measuring on it** — one whose accuracy survives the move to a new (model, OS, case) combination (that's the **Court**).
 
 ## What it does
 
-**Hexbreaker Court** investigates synthetic and real Windows forensic evidence and emits structured findings: `{artifact_kind, target, verdict ∈ {CONFIRMED, CONTESTED, REJECTED}}`. Five roles cooperate (and adversarially check each other):
+**Hexbreaker Forge — the benchmarking framework (starter idea #5).** Forge synthesizes Windows DFIR cases from a 32-bit integer seed: `seed → manifest.json + answer_key.json + mock_outputs/`, deterministic and byte-identical across hosts. Six artifact templates ship (timestomp via MFTECmd CSV, registry_persistence via RECmd Run-key dump, multi_artifact for multi-finding load, browser, prefetch, amcache), each with genuine 2-tool per-target corroboration. Every case ships a documented ground truth — an `answer_key.json` with `expected_findings`, `decoys`, and optional `planted` (adversarial) entries — and a strict scorer: `(artifact_kind, target)` exact-tuple match. That is precisely idea #5's "known-good data with documented ground truth, then scores accuracy, false positive rates, and hallucination frequency": **anyone can `hexbreaker generate --seed N`, point any DFIR agent at the case, and score it** — false positives, planted-bait confirmations (the hallucination-frequency metric), and missed findings all fall out of the same exact-tuple match. Forge does not replace NIST; it complements it. NIST measures whether your scaffolding is correct on one famous case. Forge measures whether your *architecture* is robust to inputs no scaffolding can foresee.
+
+**Hexbreaker Court — the agent built on top, graded by Forge like any other.** The Court is the agentic execution engine: it investigates synthetic *and* real Windows forensic evidence (Forge cases and the genuine NIST `.E01`) and emits structured findings `{artifact_kind, target, verdict ∈ {CONFIRMED, CONTESTED, REJECTED}}` as an investigative narrative, with every finding traceable to the exact tool execution that produced it. Five roles cooperate and adversarially check each other:
 
 | Role | Job |
 |---|---|
@@ -25,9 +31,9 @@ That's not a methodology indictment; it's a **dataset saturation problem.** When
 | Judge | **Deterministic Python** (no LLM): rules JR-01..N gate final accept/reject |
 | Provocateur | Adversarial: fires one prompt-injection payload per case (Judge JR-02 checks every round's verdict against it) |
 
-Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA256** signing (PBKDF2 600,000 iterations, MIT-licensed pattern ported from AppliedIR/Valhuntir with attribution). Cited evidence references both `step_id` and `stdout_hash`; the citation validator (Layer 1) and the chain verifier (Layer 4) reject any Verdict that cites fabricated or tampered steps.
+Self-correction is architectural, not prompt-based: the corroboration rule lives in the deterministic Judge (JR-01), so a CONFIRMED verdict citing a single tool kind is **downgraded to CONTESTED in code at runtime**, regardless of what the LLM emits — replayable via `scripts/demo_self_correction.py`. Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA256** signing (PBKDF2 600,000 iterations, MIT-licensed pattern ported from AppliedIR/Valhuntir with attribution). Cited evidence references both `step_id` and `stdout_hash`; the citation validator (Layer 1) and the chain verifier (Layer 4) reject any Verdict that cites fabricated or tampered steps. Six hallucination safeguards in total — all in code, none in prompt.
 
-**Hexbreaker Forge** synthesizes Windows DFIR cases from a 32-bit integer seed. Six templates ship (timestomp via MFTECmd CSV, registry_persistence via RECmd Run-key dump, multi_artifact for multi-finding load, browser, prefetch, amcache). Each case has an `answer_key.json` with `expected_findings`, `decoys`, and optional `planted` (Provocateur) entries. Anyone can `hexbreaker generate --seed N`, run any agent, and score with a strict `(artifact_kind, target)` exact-tuple match.
+The Court is one agent. The point of Forge is that it grades *any* agent the same way — which is how we benchmarked the Court honestly, and how we re-measured `dhyabi2` under hackathon constraints rather than citing their self-reported number.
 
 ## Measured results
 

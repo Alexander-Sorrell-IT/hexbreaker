@@ -14,7 +14,12 @@ Two products in one repo:
 
 ## Pattern
 
-**Find Evil! starter #3 — Multi-Agent Frameworks**, with the load-bearing twist: **the Judge is a deterministic Python function, not an LLM.** The Judge cannot hallucinate because the Judge cannot generate text. Every CONFIRMED verdict passes through `court/judge.py` rules JR-01..JR-N before becoming a finding.
+This repo realizes **two** of the Find Evil! supported architectural approaches against the **same** gated tool layer:
+
+- **Approach #3 — Multi-Agent Frameworks** (the primary execution engine): the adversarial Court decomposes analysis into specialized, communicating roles — Prosecutor + Defender + Witness + deterministic Judge (NO LLM) + Provocateur — with a hard `max_rounds` cap and graceful degradation (the FSM stays open on rejection rather than spiraling). The load-bearing twist: **the Judge is a deterministic Python function, not an LLM.** The Judge cannot hallucinate because the Judge cannot generate text. Every CONFIRMED verdict passes through `court/judge.py` rules JR-01..JR-N before becoming a finding.
+- **Approach #2 — Custom MCP Server** (a parallel agent entry point, not on the Court's live path): `hexbreaker.mcp.server` exposes a purpose-built MCP server whose security property is exactly #2's — *the agent physically cannot run destructive commands because the server does not expose them.* It advertises a single tool, `run_sift_tool`, whose `tool` argument is an `enum` of `sorted(SUPPORTED_TOOLS)`, and it dispatches through the **same** `tools.run_tool` chokepoint the Court uses, which re-enforces `SUPPORTED_TOOLS` server-side (`raise ValueError("unsupported tool ...")`). (Honest scope: this is one enum-gated runner, not per-tool typed functions like `get_amcache()`; and it runs SIFT tools as local subprocesses — remote execution is not wired. See [`docs/mcp.md`](mcp.md).)
+
+The unifying invariant across both approaches: every tool invocation goes through `run_tool`, which gates the name against `SUPPORTED_TOOLS`, hashes stdout/stderr, sidecars the full output, and appends a hash-chained `TOOL_CALL` record. The Court and the MCP server are independent entry points onto that one gate.
 
 ## The 6 hallucination safeguards (all in code, none in prompt)
 
@@ -124,6 +129,52 @@ Each boundary above has a paired test that *attempts the bypass and asserts it f
                             │   • hexbreaker verify --hmac       │
                             └────────────────────────────────────┘
 ```
+
+## Parallel entry point: the MCP server (approach #2)
+
+The Court above is the live data path. Separately, `hexbreaker.mcp.server`
+exposes the **same** gated tool layer to any MCP-speaking agent (Claude Desktop,
+an MCP CLI, your own agent) over stdio. It is a **parallel** entry point: it
+shares only the `run_tool` / `SUPPORTED_TOOLS` chokepoint and the downstream SIFT
+subprocess — it does **not** route through the Runner and does **not** touch any
+Court role (Prosecutor / Defender / Judge / Witness). Both lanes import the same
+`run_tool` from `hexbreaker.tools` (`mcp/server.py::execute_sift_tool` and
+`court/orchestrator.py::CourtSession.observe_tool`).
+
+```
+   COURT LANE (live)                          MCP LANE (parallel, NOT on Court live path)
+   ────────────────                           ───────────────────────────────────────────
+   Prosecutor / Defender                      external MCP client / agent
+   (Court roles, via Runner)                  --(MCP, stdio)-->
+        │                                          │
+        │  observe_tool()                          │  run_sift_tool  (tool ∈ enum = SUPPORTED_TOOLS)
+        │                                          ▼
+        │                                  ┌────────────────────────────┐
+        │                                  │  hexbreaker MCP server     │
+        │                                  │  mcp/server.py             │
+        │                                  │  • one tool: run_sift_tool │
+        │                                  │  • local subprocess only   │  ◄── remote exec NOT wired
+        │                                  └──────────────┬─────────────┘
+        │                                                 │
+        ▼                                                 ▼
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │                 tools.run_tool()  —  THE SHARED GATE                   │
+   │   • tool not in SUPPORTED_TOOLS → raise ValueError("unsupported tool") │
+   │   • argv = [tool, *args]; runs via subprocess_runner (shell=False)     │
+   │   • hash stdout/stderr → sidecar files → append hash-chained TOOL_CALL │
+   └───────────────┬───────────────────────────────────┬───────────────────┘
+                   │                                   │
+                   ▼                                   ▼
+        transcript.jsonl                       hexbreaker-mcp.jsonl
+        (the Court case transcript)            (the MCP server's OWN transcript;
+                                                same hash-chain code, different file)
+```
+
+`run_tool(transcript, …)` takes the transcript as a parameter, so each lane
+records into its **own** hash-chained transcript — the MCP server never writes
+into a Court case transcript. The reply the MCP server returns is the on-disk
+`StepRecord` (step_id + hashes + sidecar paths), not raw stdout dressed as
+verified. Full detail and the "NOT wired yet" caveats are in [`docs/mcp.md`](mcp.md).
 
 ## What runs where (deployment)
 

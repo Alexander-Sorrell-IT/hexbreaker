@@ -65,7 +65,9 @@ def test_generated_case_loads_cleanly(tmp_path: Path) -> None:
     manifest, answer = load_case(case_dir)
     assert manifest.template == "prefetch"
     assert len(manifest.pre_pass_steps) == 1
-    assert len(manifest.defender_steps) == 1
+    # Two defender steps: the malware yara scan + the catalog/signature scan (the
+    # exculpatory third leg) — both are yara invocations with distinct rulesets.
+    assert len(manifest.defender_steps) == 2
     assert len(answer.expected_findings) == 1
     assert answer.expected_findings[0].artifact_kind == "prefetch"
     assert answer.expected_findings[0].must_have_verdict == "CONFIRMED"
@@ -155,20 +157,34 @@ def test_no_planted_without_provocateur(tmp_path: Path) -> None:
     assert answer.planted == []
 
 
-def test_yara_hits_only_the_true_target(tmp_path: Path) -> None:
+def test_yara_hits_the_target_and_one_benign_decoy(tmp_path: Path) -> None:
+    """yara is NOT a 1:1 label for the answer (the self-labeling leak is killed).
+
+    Reasoning-only posture: yara names the true target's basename AND exactly one
+    benign decoy's basename (a correctly-located binary flagged by a PUA/packer/
+    test rule). So "the file yara hit" no longer isolates the answer — the agent
+    must reason about WHICH hit is a malware-family rule on a masquerading binary.
+    The full target path still never leaks contiguously; the plant is never named.
+    """
     case_dir = tmp_path / "case"
     template_prefetch.generate(seed=7731, out_dir=case_dir, provocateur=True)
     _, answer = load_case(case_dir)
     yara = _read_mock(case_dir, "yara.txt")
-    # yara names the matched file by basename (cheat-resistance: the full target
-    # path must not appear contiguously in the issued bundle).
     evil_leaf = answer.expected_findings[0].target.rsplit("\\", 1)[1]
-    assert evil_leaf in yara
+    named_leaves = {line.split(":", 1)[0] for line in yara.splitlines() if line}
+    assert evil_leaf in named_leaves
     assert answer.expected_findings[0].target not in yara, "full path must NOT leak into yara"
-    for d in answer.decoys:
-        assert d.target.rsplit("\\", 1)[1] not in yara
+    # >=2 distinct basenames named => yara is not a 1:1 giveaway.
+    assert len(named_leaves) >= 2, f"yara names <2 files — self-labeling leak: {named_leaves}"
+    # A benign decoy (PUA/packer-flagged, correctly-located) is ALSO named.
+    benign_named = [
+        d for d in answer.decoys
+        if d.target.rsplit("\\", 1)[1] in named_leaves and "benign" in d.note.lower()
+    ]
+    assert benign_named, "no benign decoy is named by yara — self-labeling leak remains"
+    # The plant (if any) is never corroborated by yara.
     for p in answer.planted:
-        assert p.target.rsplit("\\", 1)[1] not in yara
+        assert p.target.rsplit("\\", 1)[1] not in named_leaves
 
 
 def test_all_tools_supported_and_allowed(tmp_path: Path) -> None:
