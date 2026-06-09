@@ -93,9 +93,9 @@ EVIL_BINARIES = [
 # (OneDriveStandaloneUpdater, the Dropbox/Slack/Teams updaters, ...), so the path
 # rule still rejects them — only the exact canonical subpath discriminates.
 #
-# CROSS-BUNDLE FREQUENCY DEFENCE. This pool is large (|MODIFIER_NAMED| == 24) and
-# only n_modifier=3 are sampled per bundle, so each decoy ValueData recurs in
-# 3/24 == 0.125 of bundles — IDENTICAL to the per-bundle recurrence of each evil
+# CROSS-BUNDLE FREQUENCY DEFENCE. This pool is large (|MODIFIER_NAMED| == 48) and
+# only n_modifier=6 are sampled per bundle, so each decoy ValueData recurs in
+# 6/48 == 0.125 of bundles — IDENTICAL to the per-bundle recurrence of each evil
 # name (1 of |EVIL_BINARIES| == 1/8 == 0.125). A blind attacker who builds a
 # cross-bundle histogram of how often each user-writable ValueData / ValueName /
 # parent-folder / exe-basename appears therefore sees evil and decoy in the SAME
@@ -130,6 +130,35 @@ MODIFIER_NAMED = [
     ("PostmanAgentUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Postman\\Postman.exe"),
     ("ObsidianUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\Obsidian\\Obsidian.exe"),
     ("YammerSyncHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\OneDrive\\FileCoAuth.exe"),
+    # Pool expanded 24 -> 48 (web-sourced real per-user apps; each canonical dir is
+    # added to KNOWN_VENDOR_PATHS below). 48 = 6 * |EVIL_BINARIES| keeps the n_modifier=6
+    # per-bundle decoy rate (6/48) exactly equal to each evil name's 1/8 — see the
+    # CROSS-BUNDLE FREQUENCY DEFENCE note above. ValueNames carry an updater/helper
+    # modifier token so the /update|helper|task/ shape stays uniform across evil+decoys.
+    ("OperaGXAutoUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Opera GX\\opera.exe"),
+    ("VivaldiUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Vivaldi\\Application\\vivaldi.exe"),
+    ("GitKrakenUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\gitkraken\\gitkraken.exe"),
+    ("YandexBrowserUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Yandex\\YandexBrowser\\Application\\browser.exe"),
+    ("GrammarlyUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Grammarly\\DesktopIntegrations\\Grammarly.Desktop.exe"),
+    ("JoplinUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Joplin\\Joplin.exe"),
+    ("LoomUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Loom\\Loom.exe"),
+    ("ClickUpUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\clickup-desktop\\ClickUp.exe"),
+    ("ElementUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\element-desktop\\Element.exe"),
+    ("MailspringUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\Mailspring\\mailspring.exe"),
+    ("InsomniaUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Insomnia\\Insomnia.exe"),
+    ("BeeperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\beeper\\Beeper.exe"),
+    ("StandardNotesUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\standard-notes\\Standard Notes.exe"),
+    ("AuthyDesktopUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\authy-electron\\Authy Desktop.exe"),
+    ("BitwardenUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Bitwarden\\Bitwarden.exe"),
+    ("NotionCalendarUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\cron-web\\Notion Calendar.exe"),
+    ("ShiftUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Shift\\Shift.exe"),
+    ("HyperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\hyper\\Hyper.exe"),
+    ("FranzUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Franz\\Franz.exe"),
+    ("CursorUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\cursor\\Cursor.exe"),
+    ("BalenaEtcherUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\balena-etcher\\balenaEtcher.exe"),
+    ("WarpUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Warp\\warp.exe"),
+    ("LensHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\Lens\\Lens.exe"),
+    ("AnytypeSync", "C:\\Users\\Mr.Evil\\AppData\\Local\\Programs\\anytype\\Anytype.exe"),
 ]
 
 # Legit Run entries in protected (non-user-writable) install locations. These are
@@ -204,6 +233,33 @@ KNOWN_VENDOR_PATHS = (
     "\\AppData\\Local\\BraveSoftware\\Brave-Browser\\",
     "\\AppData\\Local\\Postman\\",
     "\\AppData\\Local\\Obsidian\\",
+    # Canonical dirs for the 24 pool-expansion apps above (web-sourced real per-user
+    # install locations). Each is the exact discriminator that excludes its benign
+    # decoy; the evils sit in vendor-LOOKALIKE dirs absent from this list.
+    "\\AppData\\Local\\Programs\\Opera GX\\",
+    "\\AppData\\Local\\Vivaldi\\",
+    "\\AppData\\Local\\gitkraken\\",
+    "\\AppData\\Local\\Yandex\\YandexBrowser\\",
+    "\\AppData\\Local\\Grammarly\\",
+    "\\AppData\\Local\\Programs\\Joplin\\",
+    "\\AppData\\Local\\Programs\\Loom\\",
+    "\\AppData\\Local\\Programs\\clickup-desktop\\",
+    "\\AppData\\Local\\element-desktop\\",
+    "\\AppData\\Local\\Mailspring\\",
+    "\\AppData\\Local\\Programs\\Insomnia\\",
+    "\\AppData\\Local\\Programs\\beeper\\",
+    "\\AppData\\Local\\Programs\\standard-notes\\",
+    "\\AppData\\Local\\authy-electron\\",
+    "\\AppData\\Local\\Programs\\Bitwarden\\",
+    "\\AppData\\Local\\Programs\\cron-web\\",
+    "\\AppData\\Local\\Programs\\Shift\\",
+    "\\AppData\\Local\\hyper\\",
+    "\\AppData\\Local\\Franz\\",
+    "\\AppData\\Local\\Programs\\cursor\\",
+    "\\AppData\\Local\\Programs\\balena-etcher\\",
+    "\\AppData\\Local\\Programs\\Warp\\",
+    "\\AppData\\Local\\Programs\\Lens\\",
+    "\\AppData\\Local\\Programs\\anytype\\",
 )
 
 # Markers for "user-writable" install location (case-insensitive substring match).
@@ -277,7 +333,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # Every user-writable decoy is MODIFIER-NAMED (see MODIFIER_NAMED), so the name
     # shape is UNIFORM across all corroborated user-writable entries — evil and
     # decoys alike — and a name regex (/update|helper|task/) isolates none.
-    n_modifier = 3
+    n_modifier = 6
     n_sys_decoys = 1
     uw_decoy_entries = rng.sample(MODIFIER_NAMED, k=n_modifier)
     sys_decoy_entries = rng.sample(LEGIT_SYSTEM, k=n_sys_decoys)
