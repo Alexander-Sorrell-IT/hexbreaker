@@ -191,6 +191,52 @@ def cheater_best_f1(seeds: list[int], *, provocateur: bool, tmp_root: Path) -> t
     return best, winner
 
 
+def cheater_means(seeds: list[int], *, provocateur: bool, tmp_root: Path) -> dict[str, float]:
+    """Per-strategy mean F1 across `seeds` for EVERY cheater strategy.
+
+    A strategy that fails to fire on some seed scores 0 there (missing == no
+    pick), so the denominator is always len(seeds). Returned so each shortcut can
+    be bounded individually at ITS OWN floor (single-pick at chance, k-feature
+    echo at 2/(m+1)) — a per-family gate that a regression in any single family
+    trips by name, rather than being masked under the aggregate ceiling.
+    """
+    per_strategy: dict[str, list[float]] = collections.defaultdict(list)
+    for seed in seeds:
+        case_dir = tmp_root / f"means_{int(provocateur)}_{seed}"
+        TS.generate(seed=seed, out_dir=case_dir, provocateur=provocateur)
+        _, answer = load_case(case_dir)
+        rows = _rows(case_dir)
+        yara = _label_set(case_dir, "yara.txt")
+        catalog = _label_set(case_dir, "catalog.txt")
+        for name, targets in cheater_strategies(rows, yara, catalog).items():
+            per_strategy[name].append(_f1(targets, answer))
+    k = len(seeds)
+    return {name: sum(vals) / k for name, vals in per_strategy.items()}
+
+
+# How many of the N=3 forensic legs an `echo_*` label-subset strategy conditions
+# on. A no-knowledge cheater can form these single-leg subsets and their pairwise
+# intersections WITHOUT reconstructing the forensic rule; their order is the count
+# of forensic legs the subset name encodes. The binding shortcut is the highest
+# ORDER a cheater can reach without consuming all N legs: order N-1 = 2 here.
+# (Intersecting all 3 legs — yara ∩ unsigned ∩ over — IS the oracle, by design,
+# so the suite never forms it; see test_intersect_then_rank_is_the_oracle.)
+_LEG_TOKENS = {"yara", "notcatalog", "over"}  # the three forensic legs (unsigned == notcatalog)
+
+
+def _echo_order(name: str) -> int | None:
+    """Forensic-leg order of an `echo_*` strategy, or None if it isn't one.
+
+    `echo_all` / `echo_catalog` / `echo_notyara` condition on 0 forensic legs
+    (they are NOT positive evidence for any leg of the answer), so they have
+    order 0. `echo_yara`, `echo_notcatalog`, `echo_over` are order 1; their
+    pairwise intersections are order 2 (the binding (N-1)-feature buckets)."""
+    if not name.startswith("echo_"):
+        return None
+    parts = name[len("echo_"):].split("_AND_")
+    return sum(1 for p in parts if p in _LEG_TOKENS)
+
+
 # --------------------------------------------------------------------------- #
 # ORACLE — the intended 3-way forensic discriminator.
 # --------------------------------------------------------------------------- #
@@ -286,6 +332,117 @@ def test_cheater_best_far_below_oracle(tmp_path: Path) -> None:
             f"cheater '{winner}' F1 {best:.3f} > 0.4 (prov={prov}) — a surface "
             f"strategy gets too close to the answer"
         )
+
+
+def test_each_shortcut_family_at_its_own_floor(tmp_path: Path) -> None:
+    """Per-FAMILY gate: each KNOWN no-domain shortcut bounded at ITS OWN floor, so
+    a regression in any single family trips a NAMED assertion instead of hiding
+    under the aggregate 0.4 ceiling. The under-detection the previous gate had is
+    on the ECHO families specifically: single-picks were already pinned at
+    2.2x chance by test_no_single_pick_cheater_beats_chance, but the multi-pick
+    label echoes were bounded ONLY by the 0.4 aggregate — so an order-1 echo could
+    DRIFT from its 2/(m+1) floor (~0.20) up to ~0.39 and still pass everything
+    (0.39 < 0.4, and the gap gate's 1.0 - 0.39 = 0.61 >= 0.6 clears too), leaking
+    nearly twice its forensic-leg-order share undetected. Bounding each echo order
+    at its own floor (0.25 for order 0/1, 1/3+eps for order 2) is what traps that.
+    The floors, confirmed empirically across K=24 fresh seeds:
+
+      • single-pick (argmax/argmin/oldest/newest/unique/first/last/rarity/digit):
+        floor = chance = 1/num_candidates. Bounded at 2.2x chance (best observed
+        0.125 = first_row, positional noise under the row shuffle, not isolation).
+      • order-0 echo (echo_all / echo_catalog / echo_notyara — condition on NO
+        forensic leg of the answer): floor = recall-weighted noise; bounded at the
+        order-1 floor (strictly below the binding 2-feature echo).
+      • order-1 echo (echo_yara / echo_notcatalog / echo_over — ONE forensic leg):
+        floor = 2/(m+1) for that leg's bucket size m (~7-9 rows -> 0.18-0.20).
+        Bounded strictly below the order-2 floor.
+      • order-2 echo (yara∩over, yara∩notcatalog, notcatalog∩over — the (N-1)=2
+        binding buckets, each FORCED to size m=5): floor = 2/(5+1) = 1/3. This is
+        the IRREDUCIBLE floor — the best shortcut a no-knowledge cheater reaches.
+
+    Intersecting all N=3 legs is NOT in any family here: it consumes every
+    forensic bit and IS the oracle (see test_intersect_then_rank_is_the_oracle).
+    """
+    eps = 1.0 / 15  # one chance unit ~= 0.067
+    floor_2feat = 1.0 / 3  # 2/(m+1) with the forced m=5 binding bucket
+    floor_1feat = 0.25  # order-1 echoes measured ~0.18-0.20; must stay < order-2
+    for prov in (False, True):
+        cand = _candidate_count(prov, tmp_path)
+        chance = 1.0 / cand
+        means = cheater_means(SEEDS, provocateur=prov, tmp_root=tmp_path)
+
+        # Sanity: the suite actually contains a member of each family we bound,
+        # so a vacuous-pass (suite silently stopped emitting a family) is caught.
+        orders = {n: _echo_order(n) for n in means}
+        assert any(o == 2 for o in orders.values()), "no order-2 echo in the suite"
+        assert any(o == 1 for o in orders.values()), "no order-1 echo in the suite"
+        assert any(
+            n.startswith(("argmax_", "argmin_", "oldest_", "newest_", "unique_"))
+            or n in ("first_row", "last_row", "name_has_digit_first", "rare_si_year_all")
+            for n in means
+        ), "no single-pick strategy in the suite"
+
+        for name, mean in means.items():
+            order = orders[name]
+            if order == 2:
+                # The binding (N-1)-feature bucket: at most the irreducible 1/3.
+                bound = floor_2feat + eps
+            elif order == 1:
+                # ONE forensic leg: strictly below the binding 2-feature floor.
+                bound = floor_1feat
+            elif order == 0:
+                # Conditions on no forensic leg of the answer: low recall noise.
+                bound = floor_1feat
+            else:
+                # Single-pick / uniqueness / positional / rarity / digit family.
+                bound = 2.2 * chance
+            assert mean <= bound, (
+                f"shortcut '{name}' (order={order}) F1 {mean:.3f} > floor {bound:.3f} "
+                f"(prov={prov}) — this family exceeds its own floor; it leaks more "
+                f"signal than its forensic-leg order permits"
+            )
+
+
+def test_intersect_then_rank_is_the_oracle(tmp_path: Path) -> None:
+    """BOUNDARY (the one objection a reviewer raises). A cheater computing
+    argmax(gap) WITHIN yara ∩ unsigned WOULD isolate the answer at F1=1.0 — but
+    that consumes ALL THREE forensic legs (yara AND unsigned AND the gap ranking
+    that resolves the backdate), which is precisely the INTENDED forensic rule.
+    It is the ORACLE, not a cheap shortcut, and is deliberately EXCLUDED from the
+    cheater suite. This test pins that classification: (1) argmax-gap within
+    yara∩unsigned does land on the answer (so it IS the discriminating reasoning),
+    and (2) the cheater suite never forms an order-3 (all-legs) intersection (so it
+    is not smuggled in as a 'shortcut'). The 1/3 floor holds CONDITIONAL on this
+    exclusion; the scope is single-pick + (k<=N-1)-feature echoes only."""
+    for prov in (False, True):
+        for seed in SEEDS:
+            case_dir = tmp_path / f"boundary_{int(prov)}_{seed}"
+            TS.generate(seed=seed, out_dir=case_dir, provocateur=prov)
+            _, answer = load_case(case_dir)
+            rows = _rows(case_dir)
+            yara = _label_set(case_dir, "yara.txt")
+            catalog = _label_set(case_dir, "catalog.txt")
+            ans = answer.expected_findings[0].target
+
+            def gap(r: dict[str, str]) -> float:
+                return (_dt(r["Created0x30"]) - _dt(r["Created0x10"])).total_seconds()
+
+            intersect = [r for r in rows if r["FileName"] in yara and r["FileName"] not in catalog]
+            assert intersect, f"yara∩unsigned empty (seed={seed}, prov={prov})"
+            picked = _target(max(intersect, key=gap))
+            assert picked == ans, (
+                f"argmax-gap within yara∩unsigned did NOT isolate the answer "
+                f"(seed={seed}, prov={prov}) — the intended oracle reasoning broke"
+            )
+
+            # The cheater suite must NOT contain any all-3-legs intersection: such
+            # a strategy IS the oracle and would (correctly) score 1.0, so its
+            # presence would make the floor unreachable for the wrong reason.
+            for name in cheater_strategies(rows, yara, catalog):
+                assert _echo_order(name) != 3, (
+                    f"cheater suite formed an order-3 (all-legs) echo '{name}' "
+                    f"(seed={seed}, prov={prov}) — that is the oracle, not a shortcut"
+                )
 
 
 def test_cheatresist_gap_gate(tmp_path: Path) -> None:
