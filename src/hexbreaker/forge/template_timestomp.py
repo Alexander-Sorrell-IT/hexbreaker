@@ -104,6 +104,27 @@ DRIVER_NAMES = [
     "msiscsi.sys",    # iSCSI initiator
     "vmbus.sys",      # Hyper-V VMBus
     "USBXHCI.sys",    # USB 3 xHCI
+    # Pool expansion (round 4): more genuine Windows / vendor kernel-driver
+    # filenames so the yara and unsigned label subsets carry MORE iid interior
+    # flankers. With only 3 interiors per over-subset the answer's CENTRAL ($SI/$FN
+    # median/midpoint) rank in the size-10 yara/unsigned sets was diluted to ~1/4
+    # and spiked to 0.58 on the K=24 gate seeds by finite-sample variance. Five
+    # interiors per subset enlarge those sets so the answer's central rank sits at
+    # the irreducible ~1/m with margin. Every added name is a real driver (mixed
+    # casing/digits, same morphology grammar as the originals), so the unified-pool
+    # anti-tell (name carries no signal) is preserved.
+    "disk.sys",       # generic disk class
+    "partmgr.sys",    # partition manager
+    "volmgr.sys",     # volume manager
+    "acpi.sys",       # ACPI
+    "pci.sys",        # PCI bus
+    "usbhub3.sys",    # USB 3 hub
+    "HDAudio.sys",    # HD audio class
+    "Rtnicprop64.sys",# Realtek NIC property
+    "e2f68.sys",      # Intel NIC (variant)
+    "ibtusb.sys",     # Intel Bluetooth USB
+    "nvhda64v.sys",   # NVIDIA HD audio
+    "TeeDriverW8x64.sys",  # Intel Management Engine
 ]
 
 # Both the evil file and the decoys live in the SAME sensitive directory, so
@@ -164,11 +185,23 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
                         rng.randint(0, 59), tzinfo=timezone.utc)
 
     # --- Pick filenames first, ALL from one pool, so the name carries no signal.
-    # 1 evil + 16 decoys (+ up to 2 planted) are sampled without replacement. ---
-    names = rng.sample(DRIVER_NAMES, k=19)
+    # 1 evil + 20 decoys (+ up to 2 planted) are sampled without replacement.
+    # (Round 4: 20 decoys, not 16 — both over-subsets carry 5 interior flankers
+    # instead of 3, enlarging the yara/unsigned label sets so the answer's CENTRAL
+    # date rank within them dilutes to the irreducible floor.) ---
+    # 1 evil + 22 decoys (+ up to 2 planted) sampled without replacement.
+    # (ROUND 5: 22 decoys, not 20 — the yara∩unsigned near-miss group grows from 4
+    # to 6 so that bucket holds answer + 6 = 7 rows. The extra two near-misses are
+    # what let the bucket twin the answer on BOTH the $FN and the $SI absolute-date
+    # axes simultaneously: 3 are $FN-twins (their $FN is iid from the answer's $FN
+    # distribution) and 3 are $SI-twins (their $SI is iid from the answer's $SI
+    # distribution). With only 2+2 the bucket is too small to flank the answer's
+    # rank away from the median; 3+3 drives every absolute-date order statistic
+    # within the bucket to its ~1/m floor. See the near-miss block below.)
+    names = rng.sample(DRIVER_NAMES, k=25)
     evil_name = names[0]
-    decoy_names = names[1:17]
-    plant_pool = names[17:]
+    decoy_names = names[1:23]
+    plant_pool = names[23:]
 
     # --- The timestomped file: $SI backdated YEARS before the true $FN. The
     # decisive design choice (ROUND 3): the answer's CONTINUOUS values — $SI, the
@@ -183,10 +216,20 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # closest-to-month-6.5); block the center and a quartile leaks. The only
     # position-proof construction is to RANDOMIZE the rank, not place it. The gap
     # band [1800, 3200]d sits strictly between the low-bait gaps (<1600d) and the
-    # high-bait gaps (>3400d); the $SI band 2015-2018 sits between the low baits
-    # (<=2012) and the high baits (>=2019). $FN = $SI + gap is therefore also iid
-    # in a middle band, bracketed on both sides. ---
-    si_created = _d(rng.randint(2015, 2018), rng.randint(1, 12), rng.randint(1, 28))
+    # high-bait gaps (>3400d); the $SI band 2014-2019 sits between the low baits
+    # (<=2012) and the high baits (>=2021). $FN = $SI + gap is therefore also iid
+    # in a middle band, bracketed on both sides.
+    #
+    # ROUND 4: the answer's $SI band is drawn from the SAME [2014, 2019] band as the
+    # over∩{yara,unsigned} interior flankers, so the answer is a TRUE iid member of
+    # the interior $SI population — its $SI RANK within the yara set and the unsigned
+    # set is uniformly random, never concentrated near the (lower-)median. The prior
+    # narrow [2015, 2018] answer band sat structurally OLD relative to the round-4
+    # recent-$SI yara∩unsigned near-misses, pinning the answer at the $SI lower-median
+    # of those size-10 sets (medlocol_10_notcatalog F1=0.50). Matching the answer's
+    # $SI band to the interior band is the rank-randomization the round-3 design
+    # already applies to the gap/$FN axes, now extended to the absolute $SI axis. ---
+    si_created = _d(rng.randint(2014, 2019), rng.randint(1, 12), rng.randint(1, 28))
     evil_gap = timedelta(days=rng.randint(1800, 3200))
     fn_created = si_created + evil_gap
     evil_path = f"{SENSITIVE_PARENT}\\{evil_name}"
@@ -241,8 +284,9 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     def _next() -> str:
         return next(name_iter)
 
-    def _high(yara: bool, signed: bool, note: str) -> None:
-        si = _d(rng.randint(*HIGH_SI), rng.randint(1, 12), rng.randint(1, 28))
+    def _high(yara: bool, signed: bool, note: str,
+              si_band: tuple[int, int] = HIGH_SI) -> None:
+        si = _d(rng.randint(*si_band), rng.randint(1, 12), rng.randint(1, 28))
         fn = si + timedelta(days=rng.randint(*HIGH_GAP))
         _add(_next(), si, fn, yara, signed, note)
 
@@ -251,9 +295,10 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
         fn = si + timedelta(days=rng.randint(*LOW_GAP))
         _add(_next(), si, fn, yara, signed, note)
 
-    def _interior(yara: bool, signed: bool, note: str) -> None:
-        # iid in the SAME band as the answer -> answer's interior rank is random.
-        si = _d(rng.randint(2015, 2018), rng.randint(1, 12), rng.randint(1, 28))
+    def _interior(yara: bool, signed: bool, note: str,
+                  si_band: tuple[int, int] = (2014, 2019)) -> None:
+        # iid in a band STRADDLING the answer -> answer's interior rank is random.
+        si = _d(rng.randint(*si_band), rng.randint(1, 12), rng.randint(1, 28))
         fn = si + timedelta(days=rng.randint(1800, 3200))
         _add(_next(), si, fn, yara, signed, note)
 
@@ -261,34 +306,132 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # 1 low + 3 interior: the high owns max-gap / newest-$SI / newest-$FN WITHIN the
     # yara set, the low owns min-gap / oldest-$SI / oldest-$FN, the interiors flank
     # the answer so no central pick within the yara set isolates it.
-    _high(True, True, "old SIGNED driver, largest gap + newest $SI/$FN in the yara set, yara-flagged; benign because validly signed")
+    #
+    # ROUND 4: the over∩yara SIGNED interiors' $SI band STRADDLES the answer's
+    # 2015-2018 band on BOTH sides (2013-2020), instead of sitting in the answer's
+    # own band. The round-4 yara∩unsigned near-misses (built $FN-first around the
+    # answer's recent $FN) carry RECENT $SI (>= the answer's), which — without this
+    # widening — piled extra rows ABOVE the answer in the size-10 yara set and pinned
+    # the answer at the $SI MEDIAN there (medcol_10_yara F1=0.417, a relocated tell).
+    # Straddling the answer's $SI band with these 3 signed interiors re-randomizes the
+    # answer's $SI rank within the yara set without changing any row count (candidate
+    # count feeds the single-pick chance band, so it must stay fixed). The band stays
+    # strictly between the low bait (<=2012) and the high bait (>=2021), so the baits
+    # still own the oldest/newest $SI extremes; only the INTERIOR rank is spread.
+    # The over∩yara HIGH bait $SI is pushed to 2021-2023 so it stays strictly NEWER
+    # than the widened interior band (top 2020) — it must keep owning the newest $SI
+    # within the yara set.
+    _high(True, True, "old SIGNED driver, largest gap + newest $SI/$FN in the yara set, yara-flagged; benign because validly signed",
+          si_band=(2021, 2023))
     _low(True, True, "ancient SIGNED driver, smallest over-gap + oldest $SI/$FN in the yara set, yara-flagged; benign because validly signed")
-    for _ in range(3):
-        _interior(True, True, "SIGNED driver, $SI predates $FN from image deploy, yara-flagged; benign because signed (interior over∩yara flanker)")
+    for _ in range(5):
+        _interior(True, True, "SIGNED driver, $SI predates $FN from image deploy, yara-flagged; benign because signed (interior over∩yara flanker)",
+                  si_band=(2014, 2019))
 
-    # over∩unsigned group (yara-CLEAN, UNSIGNED — benign because uncorroborated).
-    _high(False, False, "UNSIGNED file, largest gap + newest $SI/$FN among unsigned rows, NO yara; benign because uncorroborated")
+    # over∩unsigned group (yara-CLEAN, UNSIGNED — benign because uncorroborated). The
+    # SAME round-4 straddle as over∩yara: the round-4 yara∩unsigned near-misses are
+    # ALSO Unsigned (they are in BOTH the yara set AND the unsigned/notcatalog set),
+    # so their recent $SI skewed the UNSIGNED set's $SI median onto the answer too
+    # (medlocol_10_notcatalog F1=0.521 on a fresh band). Widen these interiors to
+    # straddle the answer's 2015-2018 band (2013-2020) — re-randomizing the answer's
+    # $SI rank within the unsigned set — and push the over∩unsigned high bait to
+    # 2021-2023 so it keeps owning the newest $SI among unsigned rows. Row counts
+    # unchanged.
+    _high(False, False, "UNSIGNED file, largest gap + newest $SI/$FN among unsigned rows, NO yara; benign because uncorroborated",
+          si_band=(2021, 2023))
     _low(False, False, "old UNSIGNED file, smallest over-gap + oldest $SI/$FN among unsigned rows, NO yara; benign because uncorroborated")
-    for _ in range(3):
-        _interior(False, False, "UNSIGNED file, $SI predates $FN from a volume op, NO yara; benign because uncorroborated (interior over∩unsigned flanker)")
+    for _ in range(5):
+        _interior(False, False, "UNSIGNED file, $SI predates $FN from a volume op, NO yara; benign because uncorroborated (interior over∩unsigned flanker)",
+                  si_band=(2014, 2019))
 
     # OVERALL extreme baits (yara-CLEAN, SIGNED — neither categorical leg). They own
     # the max-gap / oldest-$SI / newest-$FN OVERALL (across every row), so the
-    # unrestricted argmax/oldest/newest rankings also miss the answer.
-    _high(False, True, "recently-imaged SIGNED driver, newest $SI/$FN + large gap overall, yara-clean; benign on both categorical legs")
+    # unrestricted argmax/oldest/newest rankings also miss the answer. The high bait's
+    # $SI is pushed to 2024-2026 so it stays the newest $SI OVERALL even after the
+    # over∩yara high bait moved up to 2021-2023.
+    _high(False, True, "recently-imaged SIGNED driver, newest $SI/$FN + large gap overall, yara-clean; benign on both categorical legs",
+          si_band=(2024, 2026))
     _low(False, True, "ancient SIGNED driver, $FN relinked by a volume op: oldest $SI/$FN + largest gap overall; signed + no yara")
 
     # SUB-THRESHOLD yara∩unsigned near-misses (yara-HIT, UNSIGNED, gap UNDER the
     # backdate threshold). They share the answer's TWO categorical legs but fail leg
-    # A, so the yara∩unsigned 2-feature echo holds {answer + these 4} = 5 members —
-    # the binding (N-1)-feature bucket -> echo F1 = 2/6 = 1/3 (the irreducible
-    # floor). Distinguished from the answer ONLY by gap magnitude. Their $SI/$FN are
-    # iid across a broad window so they ALSO flank the answer on the $SI/$FN axes.
-    for _ in range(4):
-        si = _d(rng.randint(2014, 2022), rng.randint(1, 12), rng.randint(1, 28))
-        fn = si + timedelta(days=rng.randint(10, BACKDATE_DAYS - 20))
-        _add(_next(), si, fn, True, False,
-             "yara+unsigned near-miss: shares both categorical legs but gap UNDER the backdate threshold")
+    # A, so the yara∩unsigned 2-feature echo holds {answer + these 6} = 7 members —
+    # the binding (N-1)-feature bucket -> echo F1 = 2/8 = 0.25 (below the order-2
+    # floor 1/3, so the echo gate still passes; the bucket grew from 5 to 7 to make
+    # the per-axis twinning below feasible — see next paragraph).
+    #
+    # ROUND 5 (the leak a 30-agent hunt + skeptic reproduced AND the residual the
+    # round-4 fix relocated). The fundamental obstruction: the answer is the UNIQUE
+    # over-threshold row, so its gap (>=1800d) dwarfs every near-miss gap (<345d).
+    # gap = $FN - $SI, so a small-gap near-miss has $FN ~ $SI (within a year), while
+    # the answer has $FN years AHEAD of $SI. A near-miss therefore CANNOT twin the
+    # answer on BOTH absolute axes at once: a near-miss whose $FN matches the answer's
+    # (recent) $FN has a recent $SI (ABOVE the answer's old $SI), and a near-miss whose
+    # $SI matches the answer's (old) $SI has an old $FN (BELOW the answer's recent $FN).
+    # Round 4 tried to BRACKET the answer (>=1 near-miss above + >=1 below on each
+    # axis); with only 4 near-misses that hard bracket PINNED the answer's $FN rank to
+    # the bucket CENTER (medcol_30_yu F1=0.54) and its $SI rank to a fixed index-1
+    # (rareSIyear / median tells). A hard bracket on a tiny set is itself a position.
+    #
+    # THE FIX (evidence-design, generalizable): twin EACH absolute axis INDEPENDENTLY
+    # with its OWN group of iid near-misses, instead of bracketing both with a shared
+    # few. We split the 6 near-misses into:
+    #   • 3 $FN-TWINS: target $FN drawn iid from the SAME distribution as the answer's
+    #     $FN (an $SI in [2014,2019] + a [1800,3200]d gap), then $SI = $FN - small_gap.
+    #     The answer is a TRUE iid member of the {answer + 3 $FN-twins} $FN population,
+    #     so its $FN RANK within that 4-set is uniform — never pinned to the median or
+    #     an extreme. (These 3 carry recent $SI, ABOVE the answer's, by construction.)
+    #   • 3 $SI-TWINS: $SI drawn iid from the answer's $SI distribution [2014,2019],
+    #     then $FN = $SI + small_gap. The answer is a TRUE iid member of the
+    #     {answer + 3 $SI-twins} $SI population, so its $SI rank within that 4-set is
+    #     uniform. (These 3 carry old $FN, BELOW the answer's, by construction.)
+    # Net over the 7-row bucket: on $FN the answer is uniform among its 4-member
+    # $FN-twin group and sits above the 3 old-$FN $SI-twins (rank uniform in the upper
+    # band, median/newest single-picks ~1/4 ~ 0.25, oldest never -> 0); SYMMETRICALLY
+    # on $SI. Every order statistic (newest/oldest/median/midpoint/mode/rare on $FN OR
+    # $SI, restricted to the bucket) lands on the answer at most ~1/4 of seeds — below
+    # the 0.40 strong-leak gate — and NONE deterministically. Every near-miss gap is
+    # sub-threshold, so `argmax(gap)` within yara∩unsigned STILL uniquely picks the
+    # answer (the oracle is preserved; see test_intersect_then_rank_is_the_oracle).
+    # The year MODE/RARE picks are multi-pick over iid-spread years (no near-miss is
+    # forced to a unique offset), so they collapse to the bucket floor, not a tell.
+    def _small_gap() -> timedelta:
+        return timedelta(days=rng.randint(10, BACKDATE_DAYS - 20))
+
+    # Twin SOURCE bands. The $SI band is kept EQUAL to the answer's own [2014,2019]
+    # so the near-misses do NOT perturb the GLOBAL $SI distribution (widening it spread
+    # near-miss $SI into the global tails and re-pinned the answer at the global $SI
+    # midpoint — midcol_10_all crept over the single-pick band). The source GAP band is
+    # widened to [1200,4000]d (vs the answer's [1800,3200]) so the $FN-twins' $FN
+    # STRADDLES the answer's $FN on both sides: some FN-twins land reliably newer / older
+    # than any answer $FN, pulling the answer off the bucket's newest-$FN extreme. Both
+    # twin types' OWN gaps stay strictly sub-threshold via _small_gap(); the source gap
+    # only fixes where the target $FN sits absolutely, never the near-miss's real gap.
+    # (Measured: newest_30_yu / newest-$FN-year-bucket drop to ~0.16, every yu-bucket
+    # order statistic well under the 0.40 gate, and the global $SI single-picks stay at
+    # the same distribution that already passed.)
+    TWIN_SI = (2014, 2019)
+    TWIN_GAP = (1200, 4000)
+
+    # 3 $FN-twins: target $FN drawn from a band straddling the answer's $FN marginal;
+    # $SI = $FN - small sub-threshold gap (so these carry recent $SI by construction).
+    for _ in range(3):
+        _t_si = _d(rng.randint(*TWIN_SI), rng.randint(1, 12), rng.randint(1, 28))
+        _t_fn = _t_si + timedelta(days=rng.randint(*TWIN_GAP))
+        _nm_si = _t_fn - _small_gap()
+        _add(_next(), _nm_si, _t_fn, True, False,
+             "yara+unsigned near-miss ($FN-twin): $FN drawn from a band straddling the "
+             "answer's $FN distribution, $SI = $FN - sub-threshold gap; randomizes the "
+             "answer's $FN rank within the bucket (recent $SI by construction)")
+    # 3 $SI-twins: $SI drawn from a band straddling the answer's $SI marginal;
+    # $FN = $SI + small sub-threshold gap (so these carry old $FN by construction).
+    for _ in range(3):
+        _t_si = _d(rng.randint(*TWIN_SI), rng.randint(1, 12), rng.randint(1, 28))
+        _nm_fn = _t_si + _small_gap()
+        _add(_next(), _t_si, _nm_fn, True, False,
+             "yara+unsigned near-miss ($SI-twin): $SI drawn from a band straddling the "
+             "answer's $SI distribution, $FN = $SI + sub-threshold gap; randomizes the "
+             "answer's $SI rank within the bucket (old $FN by construction)")
 
     # --- Structural sanity (DETERMINISM-safe). These pin the BIT-TABLE shape, NOT
     # the answer's position on any scalar axis (position is intentionally random). ---
@@ -314,11 +457,37 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     oracle_decoys = sum(1 for si, fn, y, s in over if y and (not s))
     assert oracle_decoys == 0, "a decoy satisfies the full 3-way oracle"
 
-    # The BINDING (N-1)-feature bucket — yara∩unsigned — is held to size 5 (answer +
-    # 4 sub-threshold near-misses), so the order-2 echo floor is exactly 2/6 = 1/3.
+    # The BINDING (N-1)-feature bucket — yara∩unsigned — is held to size 7 (answer +
+    # 6 sub-threshold near-misses), so the order-2 echo floor is 2/8 = 0.25 (<= the
+    # 1/3 order-2 ceiling the gate holds it to). The bucket grew from 5 to 7 so the
+    # per-axis twin construction (3 $FN-twins + 3 $SI-twins) has enough iid flankers
+    # on EACH axis to randomize the answer's rank instead of pinning it to the center.
     yara_unsigned = 1 + sum(1 for _nm, _p, _si, _fn, _lm, y, s, _note in decoys
                             if y and (not s))
-    assert yara_unsigned == 5, f"yara∩unsigned bucket has {yara_unsigned} rows (!=5)"
+    assert yara_unsigned == 7, f"yara∩unsigned bucket has {yara_unsigned} rows (!=7)"
+
+    # ROUND-5 PER-AXIS TWIN invariants on the yara∩unsigned bucket. The bracket
+    # invariant round 4 used (>=1 near-miss above AND below on each axis) is REMOVED:
+    # on a 5-row bucket a hard two-sided bracket IS a fixed central position, which is
+    # itself an order-statistic tell (medcol_30_yu F1=0.54). Instead we pin the TWIN
+    # SHAPE — 6 sub-threshold near-misses split 3 $FN-twins (recent $SI by build) + 3
+    # $SI-twins (old $FN by build) — and let the answer's per-axis RANK be genuinely
+    # random (which the gate measures directly; it cannot be a determinism-safe assert
+    # precisely because it is random). Every near-miss is sub-threshold so the oracle
+    # `argmax(gap)` within the bucket still uniquely picks the answer.
+    yu_nm = [(si, fn) for _nm, _p, si, fn, _lm, y, s, _note in decoys
+             if y and (not s) and not is_timestomped(si, fn)]
+    assert len(yu_nm) == 6, f"expected 6 sub-threshold yara∩unsigned near-misses, got {len(yu_nm)}"
+    # 3 $FN-twins carry recent $SI (>= the answer's $SI, since their gap <345d dwarfed
+    # by the answer's >=1800d gap pulling its $SI years older); 3 $SI-twins carry $SI
+    # in the answer's [2014,2019] band. The answer's $FN is iid among the {answer +
+    # $FN-twins} group and its $SI iid among the {answer + $SI-twins} group, so neither
+    # axis is bracketed on BOTH sides every seed — that is the point, and the answer's
+    # per-axis RANK is left genuinely random (the gate measures it; it is NOT a
+    # determinism-safe invariant, so we do NOT assert a year-spread or a two-sided
+    # bracket here — an iid draw can legitimately cluster a few years, and asserting
+    # otherwise would crash generation on a valid seed). The mode/rare-year picks that
+    # such clustering could feed are MULTI-pick and bounded at the bucket floor anyway.
 
     # BRACKETING: a decoy strictly beyond the answer on BOTH ends of EVERY scalar
     # axis (gap / $SI / $FN), within the over-set AND within each forensic subset,
@@ -436,7 +605,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
             f"{(fn_created - si_created).days // 365} years BEFORE its $FN Created "
             f"({fn_created.year}); (B) the noisy APT_DRIVER_HEURISTIC yara rule "
             f"flags it; and (C) sigcheck reports it Unsigned (a real OS driver is "
-            f"signed). Fourteen decoys each defeat a 1- or 2-feature shortcut: a "
+            f"signed). {len(decoys)} decoys each defeat a 1- or 2-feature shortcut: a "
             f"signed yara-hit driver and an unsigned yara-clean file both have "
             f"LARGER backward gaps (so max-gap rankings miss the answer), other "
             f"over-threshold decoys carry SMALLER gaps / NEWER $SI / OLDER $FN (so "
