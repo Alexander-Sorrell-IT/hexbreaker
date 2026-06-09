@@ -109,3 +109,25 @@ hexbreaker registry reveal --submission <id> --store ./registry.db          # wr
 `registry issue` → seal verified → a submission scored into a 3-column scorecard → `board` renders
 it → `reveal` enables byte-identical replay → cheat-resistance + validation-gating proven by test →
 full suite green → teardown artifact committed. All on `registry-v1`; `main`/tag untouched.
+
+---
+
+## Decision log
+
+**2026-06-08 — v1 plumbing built; Capability axis flagged; Option 1 chosen.**
+- v1 built & green (280 pass/5 skip): seed-strip, issue, store, receipt-gated score,
+  3-column scorecard, board, reveal, byte-identical replay. Seed-replay cheat vector
+  CLOSED; fabrication gated by receipt validation (skeptic-confirmed). Commits
+  89efbd5→957326c on registry-v1.
+- Adversarial P1 gate found the **Capability axis is non-discriminative**: secondary
+  signals (yara/sysmon) fire only on the answer (self-labeling), and only the answer
+  row carries the tell ($SI≠$FN) while decoys are clean (regex-able). The invariant
+  "target never in evidence" is unsatisfiable; the real property is **answer
+  indistinguishable from decoys except by the intended reasoning** (every signal that
+  fires on the answer also fires on ≥1 decoy; decoys carry benign near-miss tells).
+  Integrity + Verifiability axes are sound; only Capability needs the fix.
+- **Alex chose Option 1 (reasoning-only / strict).** Next: the evidence-design pass
+  across all 6 templates, gated by a CHEATER-GAP PROOF (a label/regex cheater must
+  score ≈chance while an oracle applying the intended rule scores high). HARD-STOP on
+  that gate — no "tests pass so it's done." Tracked in `BUILD_CHEATRESIST_PLAN` below
+  / the build-cheat-resist workflow.

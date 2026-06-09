@@ -23,6 +23,8 @@ transcripts/*.log
 # re-leak the sealed benchmark). registry_teardown.py regenerates it deterministically.
 samples/registry_demo/registry.db
 *.registry.db
+registry.db
+/registry.db
 docs/demo/_build/
 cases/generated/
 cases/starter/*.E01
