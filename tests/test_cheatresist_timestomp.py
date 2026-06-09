@@ -153,11 +153,76 @@ def cheater_strategies(
         for col in DATE_COLS:
             out[f"oldest_{col[-2:]}_{name}"] = [_target(min(sub, key=lambda r: _dt(r[col])))]
             out[f"newest_{col[-2:]}_{name}"] = [_target(max(sub, key=lambda r: _dt(r[col])))]
+        # Rarity (rarest) AND frequency (MODE) of the YEAR of EVERY date column,
+        # restricted to each subset. The previous suite tested rarest-$SI-year only
+        # and never the MODE, and never the $FN ($Created0x30) column at all — the
+        # leg the design had left to vary freely. That left a whole order-1 family
+        # unmonitored: "among unsigned rows, pick the rows whose $FN year is the
+        # most common" landed on {answer + few benign} (F1=0.5) because the evil
+        # $FN year (2026) was the unique mode there. We now form BOTH the rarest-
+        # year and the most-common-year (mode) selection for $SI and $FN in every
+        # subset, so an absolute-date frequency tell on either column trips a named
+        # strategy. (rare_si_year_* is kept under its exact old name for the
+        # single-pick gate; the new families get distinct names.)
+        for col in ("Created0x10", "Created0x30"):
+            yc = collections.Counter(r[col][:4] for r in sub)
+            # MODE (most-common year): emitted UNGUARDED. The mode of a date-year
+            # is a genuine isolation tell when the answer's year is the small
+            # plurality bucket (the ROUND-2 $FN leak: F1=0.5 on a {answer + 2}
+            # set), and stays self-limiting on large buckets, so we always score it.
+            top = max(yc.values())
+            mode_rows = [_target(r) for r in sub if yc[r[col][:4]] == top]
+            out[f"mode_{col[-2:]}_year_{name}"] = mode_rows
+            # RARITY (rarest year): emitted ONLY when it collapses to <=2 rows, the
+            # SAME <=2 guard the existing `rare_si_year_*` family uses below. A
+            # rarity echo that spans many singleton-year rows (e.g. the 4 ancient
+            # singletons in the over-set) is a diffuse low-precision guess dominated
+            # by the construction's 1/3 floor, not an isolation tell — the original
+            # suite deliberately scopes the rarity family to near-single-pick, and
+            # we match that precedent so a 4-row rarity echo isn't scored as a leak.
+            rare = min(yc.values())
+            rare_rows = [_target(r) for r in sub if yc[r[col][:4]] == rare]
+            if len(rare_rows) <= 2:
+                out[f"rare_{col[-2:]}_year_{name}"] = rare_rows
         years = collections.Counter(r["Created0x10"][:4] for r in sub)
         rarest = min(years.values())
         rare_year = [_target(r) for r in sub if years[r["Created0x10"][:4]] == rarest]
         if len(rare_year) <= 2:
             out[f"rare_si_year_{name}"] = rare_year
+
+    # Absolute-date MAX-YEAR binning on each date column (a pure frequency/
+    # distribution fingerprint that consumes NO forensic leg): bin all rows by the
+    # YEAR of the column, take the bucket whose year is the maximum, and pick the
+    # 2 rows with the OLDEST and (separately) NEWEST full timestamp inside it.
+    # `bottom2_maxyear_30` (oldest-2 in the max-$FN-year bucket) used to land on
+    # {answer, D1} (F1=0.667) because the evil row was the older of only two 2026
+    # rows; the design now seeds the max-year bucket with several benign rows on
+    # both sides of the answer, so this must sit at the floor.
+    for col in DATE_COLS:
+        max_year = max(r[col][:4] for r in rows)
+        bucket = sorted((r for r in rows if r[col][:4] == max_year), key=lambda r: _dt(r[col]))
+        out[f"bottom2_maxyear_{col[-2:]}"] = [_target(r) for r in bucket[:2]]
+        out[f"top2_maxyear_{col[-2:]}"] = [_target(r) for r in bucket[-2:]]
+
+    # Timestamp SUB-FIELD granularity fingerprint (seconds-of-minute). The evil
+    # row used to be the ONLY row with nonzero $SI/$FN seconds (its datetime()
+    # constructors passed a seconds argument the decoys omitted), so "rows with
+    # nonzero seconds" isolated it at F1=1.0 — a rarity fingerprint the 3-leg floor
+    # analysis never accounted for. The generator now draws seconds for EVERY row
+    # from one shared pool, so this selects ~every row (near-chance recall) and the
+    # answer carries no granularity tell. Asserted both as "nonzero seconds" and
+    # as "the structurally-unique seconds value" to catch either framing.
+    nz = [_target(r) for r in rows
+          if _dt(r["Created0x10"]).second != 0 or _dt(r["Created0x30"]).second != 0]
+    if nz:
+        out["nz_seconds_either"] = nz
+    sec_counts = collections.Counter(
+        (_dt(r["Created0x10"]).second, _dt(r["Created0x30"]).second) for r in rows
+    )
+    uniq_sec = [_target(r) for r in rows
+                if sec_counts[(_dt(r["Created0x10"]).second, _dt(r["Created0x30"]).second)] == 1]
+    if 0 < len(uniq_sec) <= 2:
+        out["unique_seconds_pair"] = uniq_sec
 
     # Position and lexical "odd-formatted value" tells.
     out["first_row"] = [_target(rows[0])]
@@ -191,16 +256,23 @@ def cheater_best_f1(seeds: list[int], *, provocateur: bool, tmp_root: Path) -> t
     return best, winner
 
 
-def cheater_means(seeds: list[int], *, provocateur: bool, tmp_root: Path) -> dict[str, float]:
-    """Per-strategy mean F1 across `seeds` for EVERY cheater strategy.
+def cheater_means(
+    seeds: list[int], *, provocateur: bool, tmp_root: Path
+) -> dict[str, tuple[float, int]]:
+    """Per-strategy (mean F1, max pick-count) across `seeds` for EVERY strategy.
 
     A strategy that fails to fire on some seed scores 0 there (missing == no
     pick), so the denominator is always len(seeds). Returned so each shortcut can
-    be bounded individually at ITS OWN floor (single-pick at chance, k-feature
-    echo at 2/(m+1)) — a per-family gate that a regression in any single family
-    trips by name, rather than being masked under the aggregate ceiling.
+    be bounded individually at ITS OWN floor — and the per-family gate classifies
+    by SHAPE: a SINGLE-pick strategy (max pick-count == 1, e.g. argmax/oldest/
+    unique/rare-year-collapsed-to-one) must sit at chance, while a MULTI-pick
+    strategy (mode bucket / max-year bin / nonzero-seconds set / label echo) can
+    legitimately reach the irreducible 2/(m+1) floor but no higher. The max
+    pick-count over seeds is the discriminator (a regression in any single family
+    trips a NAMED assertion instead of hiding under the aggregate ceiling).
     """
     per_strategy: dict[str, list[float]] = collections.defaultdict(list)
+    max_picks: dict[str, int] = collections.defaultdict(int)
     for seed in seeds:
         case_dir = tmp_root / f"means_{int(provocateur)}_{seed}"
         TS.generate(seed=seed, out_dir=case_dir, provocateur=provocateur)
@@ -210,8 +282,9 @@ def cheater_means(seeds: list[int], *, provocateur: bool, tmp_root: Path) -> dic
         catalog = _label_set(case_dir, "catalog.txt")
         for name, targets in cheater_strategies(rows, yara, catalog).items():
             per_strategy[name].append(_f1(targets, answer))
+            max_picks[name] = max(max_picks[name], len(targets))
     k = len(seeds)
-    return {name: sum(vals) / k for name, vals in per_strategy.items()}
+    return {name: (sum(vals) / k, max_picks[name]) for name, vals in per_strategy.items()}
 
 
 # How many of the N=3 forensic legs an `echo_*` label-subset strategy conditions
@@ -381,8 +454,14 @@ def test_each_shortcut_family_at_its_own_floor(tmp_path: Path) -> None:
             or n in ("first_row", "last_row", "name_has_digit_first", "rare_si_year_all")
             for n in means
         ), "no single-pick strategy in the suite"
+        # The three KNOWN ROUND-2 shortcuts MUST be present (else this gate would
+        # vacuously pass with the leaks restored): $FN-year MODE within a label
+        # subset, max-$FN-year binning, and the seconds-granularity fingerprint.
+        assert any(n.startswith("mode_30_year_") for n in means), "no $FN-year MODE strategy"
+        assert "bottom2_maxyear_30" in means, "no max-$FN-year binning strategy"
+        assert "nz_seconds_either" in means, "no seconds-granularity strategy"
 
-        for name, mean in means.items():
+        for name, (mean, mpicks) in means.items():
             order = orders[name]
             if order == 2:
                 # The binding (N-1)-feature bucket: at most the irreducible 1/3.
@@ -393,13 +472,97 @@ def test_each_shortcut_family_at_its_own_floor(tmp_path: Path) -> None:
             elif order == 0:
                 # Conditions on no forensic leg of the answer: low recall noise.
                 bound = floor_1feat
-            else:
-                # Single-pick / uniqueness / positional / rarity / digit family.
+            elif mpicks == 1:
+                # SINGLE-pick (argmax/argmin/oldest/newest/unique/positional/rarity
+                # or digit) — isolating the answer scores ~1.0, so must be ~chance.
                 bound = 2.2 * chance
+            else:
+                # MULTI-pick non-echo frequency/binning families (mode bucket,
+                # max-year bin, nonzero-seconds set): a benign-pooled construction
+                # leaves these at the irreducible 2/(m+1) floor or below — NOT at
+                # 1.0. This is the bound that traps the three ROUND-2 leaks:
+                # mode_30_year_notcatalog (was 0.5), bottom2_maxyear_30 (was 0.667),
+                # nz_seconds_either (was 1.0) must each be <= 1/3 + eps now.
+                bound = floor_2feat + eps
             assert mean <= bound, (
-                f"shortcut '{name}' (order={order}) F1 {mean:.3f} > floor {bound:.3f} "
-                f"(prov={prov}) — this family exceeds its own floor; it leaks more "
-                f"signal than its forensic-leg order permits"
+                f"shortcut '{name}' (order={order}, max_picks={mpicks}) F1 {mean:.3f} "
+                f"> floor {bound:.3f} (prov={prov}) — this family exceeds its own "
+                f"floor; it leaks more signal than its forensic-leg order permits"
+            )
+
+
+def test_round2_known_shortcuts_at_floor(tmp_path: Path) -> None:
+    """ROUND-2 REGRESSION (the three shortcuts the previous gate under-detected).
+
+    Each is recomputed HERE directly (not via the suite) and pinned at the 1/3
+    floor, so a regression that restores the leak trips THIS named assertion with
+    the historical leaking value in the message. These three families were the
+    blind spots: the in-repo suite tested rarest-$SI-year only (never the MODE,
+    never the $FN/Created0x30 column) and never any timestamp SUB-field, so all
+    three sat unmonitored at F1 0.5 / 0.667 / 1.0 respectively.
+
+      1. mode::30_year::notcatalog — among UNSIGNED rows (absent from the catalog
+         scan), select those whose $FN-Created (Created0x30) YEAR is the most
+         common. The evil $FN year (2026) used to be the unique mode among
+         unsigned rows, so this returned {answer, D3, D10} at F1=0.5. The
+         generator now forces the unsigned-$FN-2026 bucket to >=5 members, so the
+         mode selects a size->=5 set -> F1 = 2/(m+1) <= 1/3.
+      2. bottom2_maxyear_30 — bin all rows by the YEAR of Created0x30, take the
+         max-year (2026) bucket, pick the 2 rows with the OLDEST timestamp in it.
+         Used to land on {answer, D1} (F1=0.667) because the evil row was the
+         older of only two 2026 rows. The 2026 $FN bucket now holds several benign
+         rows OLDER than the answer (D1/D9/D10 at months 1-3, evil at 5-8), so the
+         oldest-2 are benign -> F1 = 0.
+      3. nz_seconds_either — rows whose $SI or $FN seconds-of-minute is nonzero.
+         The evil row used to be the UNIQUE nonzero-seconds row (F1=1.0) because
+         only its datetime() constructors passed a seconds argument. Seconds are
+         now drawn for EVERY row from one shared pool, so this selects ~every row
+         (F1 ~ chance).
+
+    The bound is the irreducible floor 1/3 + eps; each shortcut measured well
+    below it (0.33 / 0.00 / 0.13). A violation means the bit-table discipline on
+    the $FN column or the timestamp sub-fields regressed.
+    """
+    floor = 1.0 / 3 + 1.0 / 15  # 0.4 — same gate the order-2 echo is held to
+    for prov in (False, True):
+        m1: list[float] = []
+        m2: list[float] = []
+        m3: list[float] = []
+        for seed in SEEDS:
+            case_dir = tmp_path / f"r2_{int(prov)}_{seed}"
+            TS.generate(seed=seed, out_dir=case_dir, provocateur=prov)
+            _, answer = load_case(case_dir)
+            rows = _rows(case_dir)
+            catalog = _label_set(case_dir, "catalog.txt")
+
+            # 1. $FN-year MODE among unsigned rows.
+            unsigned = [r for r in rows if r["FileName"] not in catalog]
+            yc = collections.Counter(r["Created0x30"][:4] for r in unsigned)
+            top = max(yc.values())
+            m1.append(_f1([_target(r) for r in unsigned if yc[r["Created0x30"][:4]] == top], answer))
+
+            # 2. Oldest-2 within the max-$FN-year bucket.
+            max_year = max(r["Created0x30"][:4] for r in rows)
+            bucket = sorted((r for r in rows if r["Created0x30"][:4] == max_year),
+                            key=lambda r: _dt(r["Created0x30"]))
+            m2.append(_f1([_target(r) for r in bucket[:2]], answer))
+
+            # 3. Nonzero-seconds rows.
+            nz = [_target(r) for r in rows
+                  if _dt(r["Created0x10"]).second != 0 or _dt(r["Created0x30"]).second != 0]
+            m3.append(_f1(nz, answer))
+
+        k = len(SEEDS)
+        for label, vals, was in (
+            ("mode::30_year::notcatalog", m1, 0.5),
+            ("bottom2_maxyear_30", m2, 0.667),
+            ("nz_seconds_either", m3, 1.0),
+        ):
+            mean = sum(vals) / k
+            assert mean <= floor, (
+                f"ROUND-2 shortcut '{label}' F1 {mean:.3f} > floor {floor:.3f} "
+                f"(prov={prov}) — regressed toward its historical leak ({was}); the "
+                f"$FN-column / timestamp-sub-field bit-table discipline broke"
             )
 
 

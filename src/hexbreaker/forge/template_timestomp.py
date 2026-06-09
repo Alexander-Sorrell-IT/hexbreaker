@@ -150,6 +150,19 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     out.mkdir(parents=True, exist_ok=True)
     (out / "mock_outputs").mkdir(exist_ok=True)
 
+    # ONE shared pool for the sub-minute timestamp fields. The bit-table "draw
+    # values iid from ONE shared pool" discipline must apply to timestamp
+    # SUB-FIELDS, not just filenames: if only the evil row carried nonzero
+    # seconds, the seconds granularity would be a rarity fingerprint perfectly
+    # correlated with the answer (a no-domain cheater picks "the one row with
+    # nonzero seconds" -> F1=1.0). So EVERY datetime — evil, every decoy, every
+    # plant, and the timedelta-derived rows (which inherit these seconds) — is
+    # built through `_d`, drawing hour/minute/second from the same rng. The evil
+    # row is then no longer distinguishable by any sub-field granularity tell.
+    def _d(year: int, month: int, day: int) -> datetime:
+        return datetime(year, month, day, rng.randint(0, 23), rng.randint(0, 59),
+                        rng.randint(0, 59), tzinfo=timezone.utc)
+
     # --- Pick filenames first, ALL from one pool, so the name carries no signal.
     # 1 evil + 14 decoys (+ up to 2 planted) are sampled without replacement. ---
     names = rng.sample(DRIVER_NAMES, k=17)
@@ -157,12 +170,18 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     decoy_names = names[1:15]
     plant_pool = names[15:]
 
-    # --- The timestomped file: $SI backdated YEARS before the true $FN. ---
+    # --- The timestomped file: $SI backdated YEARS before the true $FN. The $FN
+    # year (2026) is the SHARED, plurality value: many benign decoys carry $FN
+    # year 2026 too (built below), and the evil $FN lands in the MIDDLE of the
+    # year (months 5-8) so the answer is INTERIOR on the $FN timestamp axis — it
+    # is neither the oldest nor the newest in the 2026 bucket. That kills the
+    # absolute-$FN-date frequency tells (max-$FN-year bucket + oldest-in-bucket,
+    # and $FN-year MODE within any label subset): the 2026 bucket holds several
+    # benign rows older AND newer than the answer, so no $FN-year extremum/mode
+    # isolates it. ---
     si_year = rng.randint(2017, 2019)
-    si_created = datetime(si_year, rng.randint(1, 12), rng.randint(1, 28),
-                          rng.randint(0, 23), rng.randint(0, 59), rng.randint(0, 59), tzinfo=timezone.utc)
-    fn_created = datetime(2026, rng.randint(1, 5), rng.randint(1, 28),
-                          rng.randint(0, 23), rng.randint(0, 59), rng.randint(0, 59), tzinfo=timezone.utc)
+    si_created = _d(si_year, rng.randint(1, 12), rng.randint(1, 28))
+    fn_created = _d(2026, rng.randint(5, 8), rng.randint(1, 28))
     evil_path = f"{SENSITIVE_PARENT}\\{evil_name}"
     # Sanity: the generated answer must satisfy the oracle rule.
     assert is_timestomped(si_created, fn_created)
@@ -189,10 +208,11 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # rankings miss the answer). Benign: signed AND yara-clean — fails both
     # categorical legs.
     n = decoy_names[0]
-    d1_si = datetime(2009, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d1_fn = datetime(2026, rng.randint(1, 5), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d1_si = _d(2009, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3, evil is 5-8),
+    # so D1 sits OLDER-than-answer inside the shared 2026 $FN bucket — it is one of
+    # the older 2026 rows the "max-$FN-year, oldest-in-bucket" tell lands on.
+    d1_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
     _add(n, d1_si, d1_fn, False, True,
          "ancient SIGNED driver, $FN relinked by a volume op: largest backward gap, oldest $SI; signed + no yara")
 
@@ -202,10 +222,10 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # rows" AND "newest $FN among yara-flagged rows" land HERE, not the answer.
     # Benign: it is validly signed — fails leg C.
     n = decoy_names[1]
-    d2_si = datetime(2012, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d2_fn = datetime(2026, rng.randint(6, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d2_si = _d(2012, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026, LATER in the year than the evil $FN (months 9-12), so D2 is the
+    # newest $FN among yara rows AND a NEWER-than-answer member of the 2026 bucket.
+    d2_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
     _add(n, d2_si, d2_fn, True, True,
          "old SIGNED driver, largest gap + newest $FN in the yara set, yara-flagged; benign because validly signed")
 
@@ -214,10 +234,11 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # "max gap among unsigned rows" AND "newest $FN among unsigned rows" land HERE.
     # Benign: no yara corroboration — fails leg B.
     n = decoy_names[2]
-    d3_si = datetime(2013, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d3_fn = datetime(2026, rng.randint(6, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d3_si = _d(2013, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026, LATER in the year than the evil $FN (months 9-12), so D3 is the
+    # newest $FN among unsigned rows AND a NEWER-than-answer member of both the
+    # overall and the unsigned 2026 $FN buckets.
+    d3_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
     _add(n, d3_si, d3_fn, False, False,
          "UNSIGNED file, largest gap + newest $FN among unsigned rows, NO yara hit; benign because uncorroborated")
 
@@ -227,8 +248,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # gap magnitude. Its $SI year equals the evil row's, so "rare $SI year" can
     # never isolate the answer.
     n = decoy_names[3]
-    d4_si = datetime(si_year, rng.randint(1, 6), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d4_si = _d(si_year, rng.randint(1, 6), rng.randint(1, 28))
     d4_fn = d4_si + timedelta(days=rng.randint(150, BACKDATE_DAYS - 20))
     _add(n, d4_si, d4_fn, True, False,
          "in-year reinstall ($SI same year band as evil): yara+unsigned but gap UNDER threshold")
@@ -237,8 +257,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # that matches both categorical legs but is far under threshold. Pads the
     # yara∩unsigned bucket so it is never a 1:1 leak.
     n = decoy_names[4]
-    d5_fn = datetime(2024, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d5_fn = _d(2024, rng.randint(1, 12), rng.randint(1, 28))
     d5_si = d5_fn - timedelta(hours=rng.randint(1, 20))
     _add(n, d5_si, d5_fn, True, False,
          "clock skew: $SI hours before $FN, yara+unsigned but gap << threshold")
@@ -247,8 +266,7 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # driver with a minute-scale provisioning skew. Pads the signed bucket and the
     # not-yara bucket so neither is structurally unique.
     n = decoy_names[5]
-    d6_fn = datetime(2022, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d6_fn = _d(2022, rng.randint(1, 12), rng.randint(1, 28))
     d6_si = d6_fn - timedelta(minutes=rng.randint(2, 50))
     _add(n, d6_si, d6_fn, False, True,
          "ordinary signed driver, minute-scale provisioning skew; benign on every leg")
@@ -259,15 +277,19 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # besides the answer — echoing that set is a low-precision guess, not a 1:1
     # leak. Distinguished from the answer ONLY by gap magnitude.
     n = decoy_names[6]
-    d7_fn = datetime(2024, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    # $FN 2026, LATER in the year than the evil $FN (months 9-12), $SI in 2025 so
+    # the gap stays UNDER threshold (a recent reinstall). This is the FIFTH
+    # unsigned-$FN-2026 row: it pads the unsigned-2026 $FN-year bucket to 5
+    # members {answer, D3, D10, D14, D7}, so the "$FN-year MODE among unsigned
+    # rows" tell selects a size-5 set (F1 = 2/6 = 1/3, the binding floor) rather
+    # than isolating the answer with a few benign rows.
+    d7_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
     d7_si = d7_fn - timedelta(days=rng.randint(60, BACKDATE_DAYS - 30))
     _add(n, d7_si, d7_fn, True, False,
-         "patch reinstall: yara+unsigned, $SI months before $FN but under threshold")
+         "recent reinstall: yara+unsigned, $SI 2025 months before a 2026 $FN but under threshold")
 
     n = decoy_names[7]
-    d8_fn = datetime(2023, rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d8_fn = _d(2023, rng.randint(1, 12), rng.randint(1, 28))
     d8_si = d8_fn - timedelta(minutes=rng.randint(2, 50))
     _add(n, d8_si, d8_fn, True, False,
          "provisioning skew: yara+unsigned, $SI minutes before $FN; gap << threshold")
@@ -293,10 +315,17 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # evil $SI (<=2019), with $FN 2026. So "newest $SI among over-threshold rows"
     # lands HERE, not the answer. Benign: validly signed.
     n = decoy_names[8]
-    d9_si = datetime(rng.randint(2020, 2021), rng.randint(1, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d9_fn = datetime(2026, rng.randint(6, 12), rng.randint(1, 28),
-                     rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    # $SI pinned to 2021 (not 2020-21): this row anchors a benign $SI-year-2021
+    # cluster {D9, D11, D13} within the yara set (and {D10, D12, D14} within the
+    # unsigned set), each of size 3 — strictly larger than the answer's $SI-year
+    # bucket (size 2: {answer, D4} share the 2017-19 band). So the "$SI-year MODE"
+    # tell within yara / within unsigned lands on the benign 2021 cluster, NOT the
+    # answer. 2021 is still the NEWEST $SI in the over-set (answer's $SI <= 2019).
+    d9_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3): an
+    # OLDER-than-answer member of the 2026 bucket (so "oldest in the max-$FN-year
+    # bucket" lands on a benign 2026 row, not the answer).
+    d9_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
     _add(n, d9_si, d9_fn, True, True,
          "recently-imaged SIGNED driver, $SI 2020-21 (newest $SI in the over-set), yara-flagged; benign because signed")
 
@@ -304,10 +333,10 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # set, so "newest $SI among unsigned over-threshold rows" also misses the
     # answer. Benign: no yara corroboration.
     n = decoy_names[9]
-    d10_si = datetime(2021, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d10_fn = datetime(2026, rng.randint(6, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d10_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3): an
+    # OLDER-than-answer member of BOTH the overall and the unsigned 2026 buckets.
+    d10_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
     _add(n, d10_si, d10_fn, False, False,
          "recently-imaged UNSIGNED file, $SI 2021 (newest $SI among unsigned), NO yara; benign because uncorroborated")
 
@@ -317,10 +346,8 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # "smallest gap among over-threshold rows" AND "oldest $FN among over-threshold
     # rows" land HERE. Benign: validly signed.
     n = decoy_names[10]
-    d11_si = datetime(2021, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d11_fn = datetime(2024, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d11_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    d11_fn = _d(2024, rng.randint(1, 12), rng.randint(1, 28))
     _add(n, d11_si, d11_fn, True, True,
          "old SIGNED driver, $SI 2021 -> $FN 2024 (smallest gap + oldest $FN in the over-set), yara-flagged; benign because signed")
 
@@ -328,10 +355,8 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # the unsigned set, so the smallest-gap / oldest-$FN rankings miss the answer
     # there too. Benign: no yara corroboration.
     n = decoy_names[11]
-    d12_si = datetime(2021, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d12_fn = datetime(2023, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    d12_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    d12_fn = _d(2023, rng.randint(1, 12), rng.randint(1, 28))
     _add(n, d12_si, d12_fn, False, False,
          "old UNSIGNED file, $SI 2021 -> $FN 2023 (smallest gap among unsigned), NO yara; benign because uncorroborated")
 
@@ -339,10 +364,14 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # yara-hit driver so the `over ∩ yara` 2-feature echo holds >=5 rows (answer +
     # D2 + D9 + D11 + D13) and is never a 1:1 leak. Benign: validly signed.
     n = decoy_names[12]
-    d13_si = datetime(rng.randint(2014, 2016), rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d13_fn = datetime(2024, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    # $SI pinned to 2021 (was 2014-16): third member of the benign yara $SI-2021
+    # cluster {D9, D11, D13}, so the "$SI-year MODE among yara rows" tell lands on
+    # this benign cluster (size 3 > the answer's size-2 band), never the answer.
+    d13_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026, LATER than the evil $FN (months 9-12): a NEWER-than-answer benign
+    # yara member of the overall 2026 $FN bucket, so that bucket has benign rows
+    # on BOTH sides of the answer.
+    d13_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
     _add(n, d13_si, d13_fn, True, True,
          "old SIGNED driver, $SI predates $FN from image deploy, yara-flagged; benign because signed (pads over∩yara)")
 
@@ -350,10 +379,16 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     # over-threshold unsigned file so the `over ∩ unsigned` 2-feature echo holds
     # >=5 rows (answer + D3 + D10 + D12 + D14). Benign: no yara corroboration.
     n = decoy_names[13]
-    d14_si = datetime(rng.randint(2014, 2016), rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
-    d14_fn = datetime(2025, rng.randint(1, 12), rng.randint(1, 28),
-                      rng.randint(0, 23), rng.randint(0, 59), tzinfo=timezone.utc)
+    # $SI pinned to 2021 (was 2014-16): third member of the benign UNSIGNED $SI-
+    # 2021 cluster {D10, D12, D14}, so the "$SI-year MODE among unsigned rows" tell
+    # lands on this benign cluster (size 3 > the answer's size-2 band), not the
+    # answer.
+    d14_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
+    # $FN 2026, LATER than the evil $FN (months 9-12): a NEWER-than-answer benign
+    # UNSIGNED member of the 2026 $FN bucket. Together with D3, D7, D10 this makes
+    # the unsigned-$FN-2026 bucket = {answer, D3, D7, D10, D14} = 5 (mode tell ->
+    # F1 1/3) and gives the overall 2026 bucket benign rows newer than the answer.
+    d14_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
     _add(n, d14_si, d14_fn, False, False,
          "old UNSIGNED file, $SI predates $FN from a volume op, NO yara; benign because uncorroborated (pads over∩unsigned)")
 
@@ -400,6 +435,39 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     _yc = collections.Counter(over_si_years)
     assert sum(1 for v in _yc.values() if v == 1) >= 3, "fewer than 3 singleton $SI years in over-set"
 
+    # --- $FN ($Created0x30) absolute-date tells (the leg the design had left to
+    # vary freely). The answer's $FN year (2026) must be a SHARED, plurality value
+    # with the answer INTERIOR on the $FN-timestamp axis, else "$FN-year MODE
+    # within a label subset" or "oldest-2 in the max-$FN-year bucket" isolates it.
+    allrows = [(si_created, fn_created, True, False)] + [
+        (si, fn, y, s) for _nm, _p, si, fn, _lm, y, s, _note in decoys
+    ]
+    # Unsigned-$FN-2026 bucket holds >=5 rows (answer + D3/D7/D10/D14), so the
+    # "$FN-year MODE among unsigned rows" tell selects a size->=5 set -> F1 <= 1/3:
+    unsigned_fn2026 = sum(1 for _si, fn, _y, s in allrows if (not s) and fn.year == 2026)
+    assert unsigned_fn2026 >= 5, f"unsigned $FN-2026 bucket has {unsigned_fn2026} rows (<5)"
+    # The overall max-$FN-year bucket (2026) has >=2 benign rows OLDER than the
+    # answer by full $FN timestamp (D1/D9/D10 at months 1-3, evil at 5-8), so the
+    # "oldest-2 in the max-$FN-year bucket" tell lands on benign rows, not {answer}:
+    max_fn_year = max(fn.year for _si, fn, _y, _s in allrows)
+    assert max_fn_year == fn_created.year
+    older_in_bucket = sum(
+        1 for _si, fn, _y, _s in allrows if fn.year == max_fn_year and fn < fn_created
+    )
+    assert older_in_bucket >= 2, f"only {older_in_bucket} benign $FN-2026 rows older than answer"
+    # $SI-year MODE: a benign $SI-year cluster (D9/D11/D13 = 2021) is STRICTLY
+    # larger than the answer's $SI-year bucket within BOTH the yara set and the
+    # unsigned set, so the "$SI-year MODE" tell lands on the benign cluster:
+    ans_si_year = si_created.year
+    for restrict in (lambda y, s: y, lambda y, s: not s):  # yara set, unsigned set
+        yc = collections.Counter(
+            si.year for si, _fn, y, s in allrows if restrict(y, s)
+        )
+        ans_count = yc[ans_si_year]
+        assert max(yc.values()) > ans_count, (
+            "answer $SI year is the (tied) MODE within a label subset"
+        )
+
     # --- Synthesize MFTECmd-style CSV. ---
     header = "EntryNumber,FileName,ParentPath,Created0x10,Created0x30,LastModified0x10\n"
     rows = [
@@ -417,10 +485,11 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     planted: list[tuple[str, str, datetime, datetime]] = []
     if provocateur:
         for name in plant_pool:
-            plant_si = datetime(rng.randint(2017, 2019), rng.randint(1, 12), rng.randint(1, 28),
-                                tzinfo=timezone.utc)
-            plant_fn = datetime(2026, rng.randint(1, 5), rng.randint(1, 28),
-                                tzinfo=timezone.utc)
+            # Built through `_d` like every other row, so the plants share the same
+            # iid sub-minute (seconds) pool — they carry no granularity tell that
+            # would distinguish them (or, by contrast, the evil row) from benign.
+            plant_si = _d(rng.randint(2017, 2019), rng.randint(1, 12), rng.randint(1, 28))
+            plant_fn = _d(2026, rng.randint(1, 5), rng.randint(1, 28))
             assert is_timestomped(plant_si, plant_fn)
             planted.append((name, f"{SENSITIVE_PARENT}\\{name}", plant_si, plant_fn))
             en = 4500 + rng.randint(1, 200)
