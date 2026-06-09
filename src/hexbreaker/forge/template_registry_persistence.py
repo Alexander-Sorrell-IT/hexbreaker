@@ -65,15 +65,28 @@ from .case import (
 # discriminator is the exact canonical subpath, which is the allowlist domain
 # knowledge the ORACLE encodes and the CHEATER lacks. The tell is the path, not
 # the name.
+# SURFACE-STAT MATCHING (cheat-hunt round 2, 2026-06-09). The adversarial hunt found
+# two no-domain shortcuts the encoded suite missed: (1) name_eq_basename — the evil
+# ValueName equalled its exe basename far more often than decoys did; (2) modifier_in_dir
+# — the evil INSTALL DIR carried an update/helper/task token far more often than decoys.
+# Both are surface tells, not the intended reasoning. Fix = make the evils' surface-feature
+# distribution MATCH the decoys' so the ONLY separator is the canonical-path allowlist:
+#   * install dir is a non-canonical vendor-LOOKALIKE under \AppData\ with NO modifier token
+#     (matches decoy modifier-in-dir rate ~0.04), still absent from KNOWN_VENDOR_PATHS;
+#   * exe is the imitated product's plain basename, DIFFERENT from the modifier-bearing
+#     ValueName (matches decoy name==basename rate ~0.12 — here 0/8);
+#   * ValueName keeps its modifier token (modifier-in-NAME stays uniform 1.0 vs decoys).
+# ValueNames are UNCHANGED from the prior pool, so the cross-bundle name-frequency defense
+# (each evil name 1/8 == each decoy 6/48) is preserved.
 EVIL_BINARIES = [
-    ("OneDriveUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\OneDriveUpdate\\OneDriveUpdate.exe"),
-    ("MicrosoftEdgeHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\EdgeHealth\\msedge_health.exe"),
-    ("GoogleUpdaterTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\Google\\Updater\\GoogleUpdaterTask.exe"),
-    ("AdobeARMHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\Adobe\\ARMHelper\\AdobeARMHelper.exe"),
-    ("WindowsSecurityHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\WindowsSecurity\\WindowsSecurityHealth.exe"),
-    ("SpotifyWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpotifyHelper\\SpotifyWebHelper.exe"),
-    ("DiscordUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\DiscordUpdate\\DiscordUpdater.exe"),
-    ("TeamsMachineUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\TeamsUpdate\\teams_machine_update.exe"),
+    ("OneDriveUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\OneDriveData\\OneDrive.exe"),
+    ("MicrosoftEdgeHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\EdgeData\\msedge.exe"),
+    ("GoogleUpdaterTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\GoogleSoft\\chrome.exe"),
+    ("AdobeARMHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\AdobeData\\acrobat.exe"),
+    ("WindowsSecurityHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\WinSecData\\defender.exe"),
+    ("SpotifyWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpotifyData\\spotify.exe"),
+    ("DiscordUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\DiscordData\\discord.exe"),
+    ("TeamsMachineUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\TeamsData\\teams.exe"),
 ]
 
 # Legit Run entries that live in user-writable per-user app dirs — these are the
@@ -183,23 +196,28 @@ LEGIT_SYSTEM = [
 # EVIL_BINARIES, which inflated each evil name's per-bundle presence to ~3/8 and
 # re-opened the cross-bundle frequency separation in the "pick the commonest uw
 # name" direction; a disjoint, rate-matched plant pool closes that.)
+# Plants get the SAME surface-stat treatment as EVIL_BINARIES (modifier-free non-canonical
+# look-alike dir + product-name exe != ValueName), so the name_eq_basename / modifier_in_dir
+# shortcuts cannot separate the answer by reaching past the Sysmon filter to the plants either.
+# ValueNames unchanged (frequency band preserved); dirs/ValueNames remain disjoint from
+# EVIL_BINARIES and MODIFIER_NAMED.
 PLANT_BINARIES = [
-    ("OutlookSyncAgent", "C:\\Users\\Mr.Evil\\AppData\\Local\\OfficeSync\\OutlookSyncAgent.exe"),
-    ("ChromeHelperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\ChromeUpdate\\ChromeHelperUpdate.exe"),
-    ("AcrobatRdrUpdater", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\AcrobatHelper\\AcrobatRdrUpdater.exe"),
-    ("DefenderScanHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\DefenderHost\\DefenderScanHost.exe"),
-    ("IntelGraphicsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\IntelGfx\\IntelGraphicsUpdate.exe"),
-    ("NvidiaWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\NvWeb\\NvidiaWebHelper.exe"),
-    ("RealtekAudioTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\RtkAudioSvc\\RealtekAudioTask.exe"),
-    ("JavaUpdateScheduler", "C:\\Users\\Mr.Evil\\AppData\\Local\\JreUpdate\\JavaUpdateScheduler.exe"),
-    ("CortanaSearchHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\SearchHost\\CortanaSearchHost.exe"),
-    ("OfficeClickToRun", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\C2RHelper\\OfficeClickToRun.exe"),
-    ("SkypeBackgroundHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\SkypeHost\\SkypeBackgroundHost.exe"),
-    ("WindowsUpdateAssist", "C:\\Users\\Mr.Evil\\AppData\\Local\\WuAssist\\WindowsUpdateAssist.exe"),
-    ("AmdRadeonSettings", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\RadeonHelper\\AmdRadeonSettings.exe"),
-    ("LogitechOptionsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\LogiUpdate\\LogitechOptionsUpdate.exe"),
-    ("BitLockerSyncHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\BdeHelper\\BitLockerSyncHelper.exe"),
-    ("PrintSpoolerHost", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpoolHost\\PrintSpoolerHost.exe"),
+    ("OutlookSyncAgent", "C:\\Users\\Mr.Evil\\AppData\\Local\\OutlookData\\outlook.exe"),
+    ("ChromeHelperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\ChromiumData\\chrome.exe"),
+    ("AcrobatRdrUpdater", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\AcrobatData\\acrord32.exe"),
+    ("DefenderScanHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\WinDefData\\msmpeng.exe"),
+    ("IntelGraphicsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\IntelData\\igfxem.exe"),
+    ("NvidiaWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\NvidiaData\\nvcontainer.exe"),
+    ("RealtekAudioTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\RealtekData\\ravbg64.exe"),
+    ("JavaUpdateScheduler", "C:\\Users\\Mr.Evil\\AppData\\Local\\JavaData\\jusched.exe"),
+    ("CortanaSearchHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\CortanaData\\searchui.exe"),
+    ("OfficeClickToRun", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\OfficeData\\officec2r.exe"),
+    ("SkypeBackgroundHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\SkypeData\\skype.exe"),
+    ("WindowsUpdateAssist", "C:\\Users\\Mr.Evil\\AppData\\Local\\WuauData\\wuauclt.exe"),
+    ("AmdRadeonSettings", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\RadeonData\\radeonsettings.exe"),
+    ("LogitechOptionsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\LogiData\\logioptions.exe"),
+    ("BitLockerSyncHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\BdeData\\bdesvc.exe"),
+    ("PrintSpoolerHost", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpoolData\\spoolsv.exe"),
 ]
 
 # The intended forensic discriminator's allowlist: for a binary in a user-writable
