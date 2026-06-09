@@ -82,6 +82,22 @@ def _f1(targets: list[str], answer: AnswerKey) -> float:
     return score(findings, answer).f1
 
 
+def _single_pick_bound(cand: int) -> float:
+    """K-aware 3-sigma noise band for a chance-level SINGLE-PICK strategy.
+
+    A single-pick strategy that lands on the answer scores F1=1.0; a chance-level
+    one lands on it with probability ~1/cand, so over K=len(SEEDS) seeds its
+    sampled mean is ~Binomial(K, 1/cand)/K with standard error sqrt(p(1-p)/K). We
+    allow chance + 3*SE so the row-shuffle positional picks (first_row/last_row),
+    which are genuinely chance-level, don't trip on finite-sample noise — while any
+    strategy that ISOLATES the answer (~1.0) blows past the band by ~10x. This
+    replaces the round-2 hard-coded 2.2x chance, which assumed cand=15; the round-3
+    densification (cand=17/19) shrank 1/cand below what a flat multiple covers."""
+    p = 1.0 / cand
+    se = (p * (1.0 - p) / len(SEEDS)) ** 0.5
+    return p + 3.0 * se
+
+
 # --------------------------------------------------------------------------- #
 # CHEATER SUITE — no-domain-knowledge surface strategies.
 # Treats MFT columns as opaque tokens / numbers and label files as lists. None of
@@ -153,6 +169,41 @@ def cheater_strategies(
         for col in DATE_COLS:
             out[f"oldest_{col[-2:]}_{name}"] = [_target(min(sub, key=lambda r: _dt(r[col])))]
             out[f"newest_{col[-2:]}_{name}"] = [_target(max(sub, key=lambda r: _dt(r[col])))]
+        # CENTRAL / MEDIAN / MIDPOINT single-picks — the DUAL of the argmax/argmin/
+        # oldest/newest extrema, and the ROUND-3 leak class. Pinning the answer to
+        # the INTERIOR of an axis (to dodge the extremum picks) makes it the unique
+        # CENTRAL element, which these isolate at F1=1.0: `mid_gap_over` (closest to
+        # the gap MIDPOINT within the over-set), `median_FN_in_over_hi` (the
+        # upper-median row when the over-set is sorted by $FN), and the month-center
+        # `centermonth_maxyear_30` (emitted below). The fix is rank-randomization
+        # (the answer's scalar value is iid in a middle band, bracketed by decoys),
+        # which drives these to ~chance — but the SUITE must PROBE them or a future
+        # interior-pinning regression goes undetected (the round-2 suite never did).
+        # We form, per ordered date-delta AND per date-column AND per subset:
+        #   • closest-to-MIDPOINT: the row minimizing |value - (min+max)/2|
+        #   • MEDIAN-index (lower and upper): sub_sorted[len//2] and [(len-1)//2]
+        for c1, c2 in itertools.permutations(DATE_COLS, 2):
+            deltas = [(_dt(r[c2]) - _dt(r[c1])).total_seconds() for r in sub]
+            if len(set(deltas)) <= 1:
+                continue
+            mid = (min(deltas) + max(deltas)) / 2.0
+            out[f"middelta_{c1[-2:]}{c2[-2:]}_{name}"] = [
+                _target(sub[min(range(len(sub)), key=lambda i: abs(deltas[i] - mid))])
+            ]
+            order = sorted(range(len(sub)), key=lambda i: deltas[i])
+            out[f"meddelta_{c1[-2:]}{c2[-2:]}_{name}"] = [_target(sub[order[len(order) // 2]])]
+            out[f"medlodelta_{c1[-2:]}{c2[-2:]}_{name}"] = [_target(sub[order[(len(order) - 1) // 2]])]
+        for col in DATE_COLS:
+            vals = [_dt(r[col]).timestamp() for r in sub]
+            if len(set(vals)) <= 1:
+                continue
+            mid = (min(vals) + max(vals)) / 2.0
+            out[f"midcol_{col[-2:]}_{name}"] = [
+                _target(sub[min(range(len(sub)), key=lambda i: abs(vals[i] - mid))])
+            ]
+            order = sorted(range(len(sub)), key=lambda i: vals[i])
+            out[f"medcol_{col[-2:]}_{name}"] = [_target(sub[order[len(order) // 2]])]
+            out[f"medlocol_{col[-2:]}_{name}"] = [_target(sub[order[(len(order) - 1) // 2]])]
         # Rarity (rarest) AND frequency (MODE) of the YEAR of EVERY date column,
         # restricted to each subset. The previous suite tested rarest-$SI-year only
         # and never the MODE, and never the $FN ($Created0x30) column at all — the
@@ -203,6 +254,15 @@ def cheater_strategies(
         bucket = sorted((r for r in rows if r[col][:4] == max_year), key=lambda r: _dt(r[col]))
         out[f"bottom2_maxyear_{col[-2:]}"] = [_target(r) for r in bucket[:2]]
         out[f"top2_maxyear_{col[-2:]}"] = [_target(r) for r in bucket[-2:]]
+        # CENTER-MONTH within the max-year bucket (the ROUND-3 `centermonth_maxyear_30`
+        # leak): the single row whose month is closest to mid-year (6.5). The prior
+        # design forced the evil $FN to months 5-8 while parking every 2026 decoy at a
+        # month edge (1-3 or 9-12), so the answer was the unique near-6.5 row (F1=1.0).
+        # Rank-randomization (iid month) drives this to ~chance; the suite probes it so
+        # a month-interior-pinning regression trips a named single-pick assertion.
+        out[f"centermonth_maxyear_{col[-2:]}"] = [
+            _target(min(bucket, key=lambda r: abs(_dt(r[col]).month - 6.5)))
+        ]
 
     # Timestamp SUB-FIELD granularity fingerprint (seconds-of-minute). The evil
     # row used to be the ONLY row with nonzero $SI/$FN seconds (its datetime()
@@ -310,6 +370,23 @@ def _echo_order(name: str) -> int | None:
     return sum(1 for p in parts if p in _LEG_TOKENS)
 
 
+def _subset_leg_count(name: str) -> int:
+    """How many forensic legs the SUBSET a non-echo strategy is restricted to
+    conditions on. Every ranking/extremum/central/mode strategy is named
+    `<op>_<...>_<subset>` where <subset> is the trailing token (all/yara/notyara/
+    catalog/notcatalog/over). A pick restricted to `yara`, `notcatalog`(=unsigned)
+    or `over` conditions on ONE forensic leg, so its irreducible floor is the same
+    subset order-floor as a 1-leg echo — NOT chance. A pick over `all`/`catalog`/
+    `notyara` conditions on ZERO forensic legs of the answer and MUST sit at chance
+    (isolating the answer there scores ~1.0). This is the round-3 refinement: the
+    CENTRAL/MEDIAN single-picks restricted to a forensic subset (`middelta_*_yara`,
+    `medcol_*_over`, `centermonth_maxyear_*` on the answer-bearing bucket) sit at
+    the subset's ~1/m floor (0.25-0.33), above bare chance — that is irreducible at
+    fixed bucket size, not a leak, so they are bounded by the subset floor."""
+    tail = name.rsplit("_", 1)[-1]
+    return 1 if tail in _LEG_TOKENS else 0
+
+
 # --------------------------------------------------------------------------- #
 # ORACLE — the intended 3-way forensic discriminator.
 # --------------------------------------------------------------------------- #
@@ -367,6 +444,7 @@ def test_no_single_pick_cheater_beats_chance(tmp_path: Path) -> None:
     for prov in (False, True):
         cand = _candidate_count(prov, tmp_path)
         chance = 1.0 / cand
+        bound = _single_pick_bound(cand)
         per_strategy: dict[str, list[float]] = collections.defaultdict(list)
         for seed in SEEDS:
             case_dir = tmp_path / f"single_{int(prov)}_{seed}"
@@ -376,21 +454,28 @@ def test_no_single_pick_cheater_beats_chance(tmp_path: Path) -> None:
             yara = _label_set(case_dir, "yara.txt")
             catalog = _label_set(case_dir, "catalog.txt")
             for name, targets in cheater_strategies(rows, yara, catalog).items():
-                if len(targets) == 1:  # single-pick strategies only
+                # SINGLE-pick strategies that condition on ZERO forensic legs only.
+                # A single-pick restricted to a forensic subset (yara/notcatalog/over)
+                # conditions on one leg, so its floor is the subset's ~1/m, not bare
+                # chance — those are bounded in test_each_shortcut_family_at_its_own_floor.
+                if len(targets) == 1 and _subset_leg_count(name) == 0:
                     per_strategy[name].append(_f1(targets, answer))
-        # Bound at 2.2x chance: a genuinely chance-level single-pick strategy over
-        # K=24 with p=1/cand has SE ~sqrt(p(1-p)/K) ~ 0.06, so its sampled mean can
-        # sit ~2-sigma above 1/cand by pure noise (the residual scorers are the
-        # subset-restricted positional first/last picks, whose chance is 1/|subset|
-        # — above the 1/cand pool baseline by construction, not by isolating the
-        # answer). Any strategy that truly ISOLATED the answer would score near 1.0,
-        # an order of magnitude over this bound.
+        # Bound = chance + 3*SE (a K-aware 3-sigma noise band). A genuinely
+        # chance-level single-pick strategy over K=24 with p=1/cand has standard
+        # error SE = sqrt(p(1-p)/K), so its SAMPLED mean can sit ~3-sigma above
+        # 1/cand by pure positional noise — the residual scorers are the row-shuffle
+        # positional first/last picks, which land on the answer at random (e.g.
+        # last_row hitting 3/24 seeds = 0.125 at cand=19), NOT by isolating it. A
+        # strategy that TRULY isolated the answer scores ~1.0, an order of magnitude
+        # over this band. (Round 2 fixed cand=15 so a flat 2.2x chance covered the
+        # band; the round-3 densification raised cand to 17/19, shrinking 1/cand, so
+        # the band is now derived from K and cand instead of a hard-coded multiple.)
         for name, vals in per_strategy.items():
             mean = sum(vals) / len(SEEDS)
-            assert mean <= 2.2 * chance, (
-                f"single-pick cheater '{name}' F1 {mean:.3f} > 2.2x chance "
-                f"{2.2 * chance:.3f} (candidates={cand}, prov={prov}) — it isolates "
-                f"the answer via a surface ranking/uniqueness tell"
+            assert mean <= bound, (
+                f"single-pick cheater '{name}' F1 {mean:.3f} > chance+3*SE "
+                f"{bound:.3f} (chance={chance:.3f}, candidates={cand}, prov={prov}) — "
+                f"it isolates the answer via a surface ranking/uniqueness tell"
             )
 
 
@@ -460,6 +545,14 @@ def test_each_shortcut_family_at_its_own_floor(tmp_path: Path) -> None:
         assert any(n.startswith("mode_30_year_") for n in means), "no $FN-year MODE strategy"
         assert "bottom2_maxyear_30" in means, "no max-$FN-year binning strategy"
         assert "nz_seconds_either" in means, "no seconds-granularity strategy"
+        # The three KNOWN ROUND-3 shortcuts MUST be present (the central/median/
+        # center-month class the previous suite never probed): closest-to-gap-
+        # midpoint within over, median-index by $FN within over, and center-month
+        # in the max-$FN-year bucket. Their presence is what makes this gate FAIL
+        # on an interior-pinning regression instead of silently passing.
+        assert any(n.startswith("middelta_1030_") for n in means), "no gap-midpoint strategy"
+        assert any(n.startswith(("medcol_30_", "meddelta_1030_")) for n in means), "no $FN-median strategy"
+        assert "centermonth_maxyear_30" in means, "no center-month strategy"
 
         for name, (mean, mpicks) in means.items():
             order = orders[name]
@@ -472,10 +565,20 @@ def test_each_shortcut_family_at_its_own_floor(tmp_path: Path) -> None:
             elif order == 0:
                 # Conditions on no forensic leg of the answer: low recall noise.
                 bound = floor_1feat
+            elif mpicks == 1 and _subset_leg_count(name) >= 1:
+                # SINGLE-pick RESTRICTED TO A FORENSIC SUBSET (argmax/median/midpoint/
+                # center within yara / notcatalog / over). Conditioning on one leg +
+                # ranking within it reaches the answer-bearing over∩leg bucket (size
+                # ~6), where the answer's central/extreme rank is ~1/m ~ 0.25-0.33 —
+                # the SAME irreducible floor as the order-2 echo, NOT chance. This is
+                # the round-3 refinement: `middelta_1030_yara` etc. sit at 0.25, above
+                # bare chance but at the subset floor, so bound them there.
+                bound = floor_2feat + eps
             elif mpicks == 1:
-                # SINGLE-pick (argmax/argmin/oldest/newest/unique/positional/rarity
-                # or digit) — isolating the answer scores ~1.0, so must be ~chance.
-                bound = 2.2 * chance
+                # SINGLE-pick over a 0-forensic-leg subset (argmax/argmin/oldest/
+                # newest/unique/positional/rarity/digit/center over all/catalog/
+                # notyara) — isolating the answer there scores ~1.0, so must be ~chance.
+                bound = _single_pick_bound(cand)
             else:
                 # MULTI-pick non-echo frequency/binning families (mode bucket,
                 # max-year bin, nonzero-seconds set): a benign-pooled construction
@@ -563,6 +666,82 @@ def test_round2_known_shortcuts_at_floor(tmp_path: Path) -> None:
                 f"ROUND-2 shortcut '{label}' F1 {mean:.3f} > floor {floor:.3f} "
                 f"(prov={prov}) — regressed toward its historical leak ({was}); the "
                 f"$FN-column / timestamp-sub-field bit-table discipline broke"
+            )
+
+
+def test_round3_known_shortcuts_at_floor(tmp_path: Path) -> None:
+    """ROUND-3 REGRESSION (the CENTRAL / MEDIAN / CENTER-MONTH class the previous
+    gate never probed). Each is recomputed HERE directly and pinned at the 1/3
+    floor, so a regression that restores the leak trips THIS named assertion with
+    the historical leaking value (F1=1.0) in the message.
+
+    The previous design pinned the answer to the INTERIOR of every scalar axis (to
+    dodge the min/max extremum picks). But "interior with a sparse middle" makes the
+    answer the unique CENTRAL element — an inversion the extremum-only suite was
+    blind to. All three of these landed on the answer at F1=1.0 in the plain shape:
+
+      1. centermonth_maxyear_30 — bin Created0x30 ($FN) by year, take the max-year
+         (2026) bucket, pick the single row minimizing |month - 6.5|. The evil $FN
+         was forced to months 5-8 while every 2026 decoy was parked at a month edge
+         (1-3 or 9-12), so the answer was the unique near-mid-year row.
+      2. mid_gap_over — within the over-threshold subset (gap > 365d, a public
+         threshold), pick the row whose backward $SI<-$FN gap is closest to the
+         temporal MIDPOINT (min+max)/2. The answer's gap was the lone value in the
+         middle of the over-set's gap range.
+      3. median_FN_in_over_hi — among over rows sorted by $FN ascending, pick the
+         upper-median row over_sorted[len//2]. The answer's $FN sat at the median
+         index of the over-set.
+
+    The fix is RANK-RANDOMIZATION: the answer's $SI, gap and $FN are drawn iid from
+    a MIDDLE band and the over-decoys BRACKET it on both ends AND iid-flank it
+    inside the band, so the answer's rank on every axis is random across seeds and
+    no central/median/center-month pick isolates it. The bound is the irreducible
+    floor 1/3 + eps; each measured well below it. A violation means the generator
+    re-introduced a FIXED interior position for the answer on a scalar axis.
+    """
+    floor = 1.0 / 3 + 1.0 / 15  # 0.4 — same gate the order-2 echo is held to
+    for prov in (False, True):
+        m1: list[float] = []  # centermonth_maxyear_30
+        m2: list[float] = []  # mid_gap_over
+        m3: list[float] = []  # median_FN_in_over_hi
+        for seed in SEEDS:
+            case_dir = tmp_path / f"r3_{int(prov)}_{seed}"
+            TS.generate(seed=seed, out_dir=case_dir, provocateur=prov)
+            _, answer = load_case(case_dir)
+            rows = _rows(case_dir)
+
+            def _gap_s(r: dict[str, str]) -> float:
+                return (_dt(r["Created0x30"]) - _dt(r["Created0x10"])).total_seconds()
+
+            # 1. Center-month within the max-$FN-year bucket.
+            max_year = max(r["Created0x30"][:4] for r in rows)
+            bucket = [r for r in rows if r["Created0x30"][:4] == max_year]
+            pick = min(bucket, key=lambda r: abs(_dt(r["Created0x30"]).month - 6.5))
+            m1.append(_f1([_target(pick)], answer))
+
+            # 2. Closest-to-gap-midpoint within the over-threshold subset.
+            over = [r for r in rows if _gap_s(r) > TS.BACKDATE_DAYS * 86400]
+            gaps = [_gap_s(r) for r in over]
+            mid = (min(gaps) + max(gaps)) / 2.0
+            pick = min(over, key=lambda r: abs(_gap_s(r) - mid))
+            m2.append(_f1([_target(pick)], answer))
+
+            # 3. Upper-median row of the over-set sorted by $FN.
+            over_by_fn = sorted(over, key=lambda r: _dt(r["Created0x30"]))
+            m3.append(_f1([_target(over_by_fn[len(over_by_fn) // 2])], answer))
+
+        k = len(SEEDS)
+        for label, vals in (
+            ("centermonth_maxyear_30", m1),
+            ("mid_gap_over", m2),
+            ("median_FN_in_over_hi", m3),
+        ):
+            mean = sum(vals) / k
+            assert mean <= floor, (
+                f"ROUND-3 shortcut '{label}' F1 {mean:.3f} > floor {floor:.3f} "
+                f"(prov={prov}) — regressed toward its historical leak (1.000); the "
+                f"answer was re-pinned to a FIXED interior/central position on a "
+                f"scalar axis instead of being rank-randomized"
             )
 
 

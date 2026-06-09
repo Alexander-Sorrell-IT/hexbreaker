@@ -164,24 +164,31 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
                         rng.randint(0, 59), tzinfo=timezone.utc)
 
     # --- Pick filenames first, ALL from one pool, so the name carries no signal.
-    # 1 evil + 14 decoys (+ up to 2 planted) are sampled without replacement. ---
-    names = rng.sample(DRIVER_NAMES, k=17)
+    # 1 evil + 16 decoys (+ up to 2 planted) are sampled without replacement. ---
+    names = rng.sample(DRIVER_NAMES, k=19)
     evil_name = names[0]
-    decoy_names = names[1:15]
-    plant_pool = names[15:]
+    decoy_names = names[1:17]
+    plant_pool = names[17:]
 
-    # --- The timestomped file: $SI backdated YEARS before the true $FN. The $FN
-    # year (2026) is the SHARED, plurality value: many benign decoys carry $FN
-    # year 2026 too (built below), and the evil $FN lands in the MIDDLE of the
-    # year (months 5-8) so the answer is INTERIOR on the $FN timestamp axis — it
-    # is neither the oldest nor the newest in the 2026 bucket. That kills the
-    # absolute-$FN-date frequency tells (max-$FN-year bucket + oldest-in-bucket,
-    # and $FN-year MODE within any label subset): the 2026 bucket holds several
-    # benign rows older AND newer than the answer, so no $FN-year extremum/mode
-    # isolates it. ---
-    si_year = rng.randint(2017, 2019)
-    si_created = _d(si_year, rng.randint(1, 12), rng.randint(1, 28))
-    fn_created = _d(2026, rng.randint(5, 8), rng.randint(1, 28))
+    # --- The timestomped file: $SI backdated YEARS before the true $FN. The
+    # decisive design choice (ROUND 3): the answer's CONTINUOUS values — $SI, the
+    # backdate gap, and $FN — are drawn iid from a MIDDLE band, and the over-set
+    # decoys BRACKET that band on BOTH sides (some strictly older/smaller-gap/
+    # older-$FN, some strictly newer/larger-gap/newer-$FN) AND iid-flank it inside
+    # the band. So the answer's RANK on every scalar axis is RANDOMIZED across
+    # seeds — it is never deterministically the min, the max, NOR the median /
+    # midpoint / center. Pinning the answer to a FIXED position (the prior design
+    # pinned it to the INTERIOR / month-center) is what an order statistic isolates:
+    # block min/max and the CENTER leaks (closest-to-midpoint, median-index,
+    # closest-to-month-6.5); block the center and a quartile leaks. The only
+    # position-proof construction is to RANDOMIZE the rank, not place it. The gap
+    # band [1800, 3200]d sits strictly between the low-bait gaps (<1600d) and the
+    # high-bait gaps (>3400d); the $SI band 2015-2018 sits between the low baits
+    # (<=2012) and the high baits (>=2019). $FN = $SI + gap is therefore also iid
+    # in a middle band, bracketed on both sides. ---
+    si_created = _d(rng.randint(2015, 2018), rng.randint(1, 12), rng.randint(1, 28))
+    evil_gap = timedelta(days=rng.randint(1800, 3200))
+    fn_created = si_created + evil_gap
     evil_path = f"{SENSITIVE_PARENT}\\{evil_name}"
     # Sanity: the generated answer must satisfy the oracle rule.
     assert is_timestomped(si_created, fn_created)
@@ -202,271 +209,140 @@ def generate(seed: int, out_dir: str | Path, *, provocateur: bool = False) -> Ca
     def _add(name: str, si: datetime, fn: datetime, yara: bool, signed: bool, note: str) -> None:
         decoys.append((name, f"{SENSITIVE_PARENT}\\{name}", si, fn, si, yara, signed, note))
 
-    # D1 — MAX-GAP BAIT (yara-CLEAN, SIGNED): a genuinely ancient SIGNED driver
-    # whose $FN was relinked by a volume op, giving a backward gap even LARGER
-    # than the evil row. It owns "max gap overall" and "oldest $SI" (so those
-    # rankings miss the answer). Benign: signed AND yara-clean — fails both
-    # categorical legs.
-    n = decoy_names[0]
-    d1_si = _d(2009, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3, evil is 5-8),
-    # so D1 sits OLDER-than-answer inside the shared 2026 $FN bucket — it is one of
-    # the older 2026 rows the "max-$FN-year, oldest-in-bucket" tell lands on.
-    d1_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
-    _add(n, d1_si, d1_fn, False, True,
-         "ancient SIGNED driver, $FN relinked by a volume op: largest backward gap, oldest $SI; signed + no yara")
+    # ----------------------------------------------------------------------- #
+    # BIT-TABLE BRACKET CONSTRUCTION (ROUND 3). The answer is the CONJUNCTION of
+    # three forensic bits, each set to its benign-plurality value: (A) over-
+    # threshold backward $SI<-$FN gap, (B) yara hit, (C) unsigned. The decoys span
+    # the other bit-combos. WITHIN the over-threshold set the answer's scalar
+    # values ($SI / gap / $FN) are iid in a MIDDLE band; over-decoys come in two
+    # roles per forensic subset:
+    #   • BRACKET baits — a HIGH bait (newer $SI, larger gap, newer $FN than ANY
+    #     answer) and a LOW bait (older $SI, smaller gap, older $FN). These OWN the
+    #     min/max/oldest/newest of every scalar axis WITHIN their subset, so no
+    #     argmax/argmin/oldest/newest single-pick lands on the answer.
+    #   • INTERIOR flankers — iid in the SAME middle band as the answer, so the
+    #     answer's interior RANK is randomized: it is never the lone median /
+    #     midpoint / center-month row. (The prior design pinned the answer to the
+    #     interior, which a closest-to-midpoint / median-index / closest-to-month-
+    #     6.5 pick isolated at F1=1.0. Randomizing the rank is the only fix that
+    #     generalizes to order statistics nobody enumerated.)
+    # The two over-subsets that contain the answer (over∩yara, over∩unsigned) each
+    # get 1 HIGH + 1 LOW + 3 INTERIOR decoys -> bucket size 6. The OVERALL extreme
+    # is owned by a 3rd HIGH/LOW pair (notyara, signed). The yara∩unsigned 2-feature
+    # echo (the BINDING (N-1)-feature bucket) is held to size 5 by 4 sub-threshold
+    # yara+unsigned near-misses, so the irreducible floor is 2/(5+1) = 1/3.
 
-    # D2 — MAX-GAP-IN-YARA BAIT (yara-HIT, SIGNED): a SIGNED driver that the noisy
-    # yara rule still flags, with a backward gap LARGER than the evil row AND a $FN
-    # at least as recent as the evil row's. So BOTH "max gap among yara-flagged
-    # rows" AND "newest $FN among yara-flagged rows" land HERE, not the answer.
-    # Benign: it is validly signed — fails leg C.
-    n = decoy_names[1]
-    d2_si = _d(2012, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026, LATER in the year than the evil $FN (months 9-12), so D2 is the
-    # newest $FN among yara rows AND a NEWER-than-answer member of the 2026 bucket.
-    d2_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
-    _add(n, d2_si, d2_fn, True, True,
-         "old SIGNED driver, largest gap + newest $FN in the yara set, yara-flagged; benign because validly signed")
+    HIGH_SI = (2019, 2022)   # newer than the answer's 2015-2018 band
+    LOW_SI = (2009, 2012)    # older than the answer's band
+    HIGH_GAP = (3400, 6000)  # larger than the answer's 1800-3200d band
+    LOW_GAP = (400, 1600)    # smaller than the answer's band (still > threshold)
+    name_iter = iter(decoy_names)
 
-    # D3 — MAX-GAP-IN-UNSIGNED BAIT (yara-CLEAN, UNSIGNED): an UNSIGNED file with a
-    # backward gap LARGER than the evil row AND a $FN at least as recent. So BOTH
-    # "max gap among unsigned rows" AND "newest $FN among unsigned rows" land HERE.
-    # Benign: no yara corroboration — fails leg B.
-    n = decoy_names[2]
-    d3_si = _d(2013, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026, LATER in the year than the evil $FN (months 9-12), so D3 is the
-    # newest $FN among unsigned rows AND a NEWER-than-answer member of both the
-    # overall and the unsigned 2026 $FN buckets.
-    d3_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
-    _add(n, d3_si, d3_fn, False, False,
-         "UNSIGNED file, largest gap + newest $FN among unsigned rows, NO yara hit; benign because uncorroborated")
+    def _next() -> str:
+        return next(name_iter)
 
-    # D4 — SUB-THRESHOLD NEAR-MISS (yara-HIT, UNSIGNED), $SI in the EVIL's year
-    # band: matches BOTH categorical legs (yara + unsigned) but the gap is months
-    # — under the backdate threshold. The closest near-miss, distinguished ONLY by
-    # gap magnitude. Its $SI year equals the evil row's, so "rare $SI year" can
-    # never isolate the answer.
-    n = decoy_names[3]
-    d4_si = _d(si_year, rng.randint(1, 6), rng.randint(1, 28))
-    d4_fn = d4_si + timedelta(days=rng.randint(150, BACKDATE_DAYS - 20))
-    _add(n, d4_si, d4_fn, True, False,
-         "in-year reinstall ($SI same year band as evil): yara+unsigned but gap UNDER threshold")
+    def _high(yara: bool, signed: bool, note: str) -> None:
+        si = _d(rng.randint(*HIGH_SI), rng.randint(1, 12), rng.randint(1, 28))
+        fn = si + timedelta(days=rng.randint(*HIGH_GAP))
+        _add(_next(), si, fn, yara, signed, note)
 
-    # D5 — SUB-THRESHOLD SKEW (yara-HIT, UNSIGNED): minute/hour-scale benign skew
-    # that matches both categorical legs but is far under threshold. Pads the
-    # yara∩unsigned bucket so it is never a 1:1 leak.
-    n = decoy_names[4]
-    d5_fn = _d(2024, rng.randint(1, 12), rng.randint(1, 28))
-    d5_si = d5_fn - timedelta(hours=rng.randint(1, 20))
-    _add(n, d5_si, d5_fn, True, False,
-         "clock skew: $SI hours before $FN, yara+unsigned but gap << threshold")
+    def _low(yara: bool, signed: bool, note: str) -> None:
+        si = _d(rng.randint(*LOW_SI), rng.randint(1, 12), rng.randint(1, 28))
+        fn = si + timedelta(days=rng.randint(*LOW_GAP))
+        _add(_next(), si, fn, yara, signed, note)
 
-    # D6 — CLEAN SIGNED BASELINE (yara-CLEAN, SIGNED): an ordinary recent signed
-    # driver with a minute-scale provisioning skew. Pads the signed bucket and the
-    # not-yara bucket so neither is structurally unique.
-    n = decoy_names[5]
-    d6_fn = _d(2022, rng.randint(1, 12), rng.randint(1, 28))
-    d6_si = d6_fn - timedelta(minutes=rng.randint(2, 50))
-    _add(n, d6_si, d6_fn, False, True,
-         "ordinary signed driver, minute-scale provisioning skew; benign on every leg")
+    def _interior(yara: bool, signed: bool, note: str) -> None:
+        # iid in the SAME band as the answer -> answer's interior rank is random.
+        si = _d(rng.randint(2015, 2018), rng.randint(1, 12), rng.randint(1, 28))
+        fn = si + timedelta(days=rng.randint(1800, 3200))
+        _add(_next(), si, fn, yara, signed, note)
 
-    # D7, D8 — MORE SUB-THRESHOLD yara+UNSIGNED near-misses. They share the answer's
-    # two categorical legs (yara-flagged AND unsigned) but stay UNDER the backdate
-    # threshold, so the `yara ∩ unsigned` 2-feature set has several benign members
-    # besides the answer — echoing that set is a low-precision guess, not a 1:1
-    # leak. Distinguished from the answer ONLY by gap magnitude.
-    n = decoy_names[6]
-    # $FN 2026, LATER in the year than the evil $FN (months 9-12), $SI in 2025 so
-    # the gap stays UNDER threshold (a recent reinstall). This is the FIFTH
-    # unsigned-$FN-2026 row: it pads the unsigned-2026 $FN-year bucket to 5
-    # members {answer, D3, D10, D14, D7}, so the "$FN-year MODE among unsigned
-    # rows" tell selects a size-5 set (F1 = 2/6 = 1/3, the binding floor) rather
-    # than isolating the answer with a few benign rows.
-    d7_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
-    d7_si = d7_fn - timedelta(days=rng.randint(60, BACKDATE_DAYS - 30))
-    _add(n, d7_si, d7_fn, True, False,
-         "recent reinstall: yara+unsigned, $SI 2025 months before a 2026 $FN but under threshold")
+    # over∩yara group (yara-HIT, SIGNED — benign because validly signed). 1 high +
+    # 1 low + 3 interior: the high owns max-gap / newest-$SI / newest-$FN WITHIN the
+    # yara set, the low owns min-gap / oldest-$SI / oldest-$FN, the interiors flank
+    # the answer so no central pick within the yara set isolates it.
+    _high(True, True, "old SIGNED driver, largest gap + newest $SI/$FN in the yara set, yara-flagged; benign because validly signed")
+    _low(True, True, "ancient SIGNED driver, smallest over-gap + oldest $SI/$FN in the yara set, yara-flagged; benign because validly signed")
+    for _ in range(3):
+        _interior(True, True, "SIGNED driver, $SI predates $FN from image deploy, yara-flagged; benign because signed (interior over∩yara flanker)")
 
-    n = decoy_names[7]
-    d8_fn = _d(2023, rng.randint(1, 12), rng.randint(1, 28))
-    d8_si = d8_fn - timedelta(minutes=rng.randint(2, 50))
-    _add(n, d8_si, d8_fn, True, False,
-         "provisioning skew: yara+unsigned, $SI minutes before $FN; gap << threshold")
+    # over∩unsigned group (yara-CLEAN, UNSIGNED — benign because uncorroborated).
+    _high(False, False, "UNSIGNED file, largest gap + newest $SI/$FN among unsigned rows, NO yara; benign because uncorroborated")
+    _low(False, False, "old UNSIGNED file, smallest over-gap + oldest $SI/$FN among unsigned rows, NO yara; benign because uncorroborated")
+    for _ in range(3):
+        _interior(False, False, "UNSIGNED file, $SI predates $FN from a volume op, NO yara; benign because uncorroborated (interior over∩unsigned flanker)")
 
-    # --- OVER-THRESHOLD PADDING (D9-D14). The backdate threshold (BACKDATE_DAYS)
-    # is PUBLICLY DOCUMENTED, so a cheater can condition on `gap > threshold` for
-    # FREE without reconstructing the two categorical legs. That makes the
-    # OVER-THRESHOLD SUBSET its own attack surface: if the answer is the unique
-    # extreme of that subset on ANY ranking (smallest gap, newest $SI, oldest $FN)
-    # or its sole member in a band, a single argmin/argmax/oldest/newest restricted
-    # to `gap>threshold` isolates it — the exact leak the hunter found
-    # (`argmin(gap | gap>365d)` and `$SI-band ∩ over-threshold`). So the over-set
-    # must itself be cheat-resistant: the answer is INTERIOR on every axis, and the
-    # two over-set 2-feature echoes (`over∩yara`, `over∩unsigned`) each hold >=5
-    # rows. D1/D2/D3 already own the over-set's MAX gap / oldest $SI / newest $FN;
-    # D9-D14 add benign over-threshold rows that are NEWER-$SI, SMALLER-gap, and
-    # OLDER-$FN than the answer, so no over-set ranking lands on it. Each still
-    # fails >=1 categorical leg, so the oracle (`over AND yara AND unsigned`) stays
-    # a singleton. Realistic: legit System32 drivers are routinely years old with
-    # $SI predating $FN from image-deploy / volume ops.
+    # OVERALL extreme baits (yara-CLEAN, SIGNED — neither categorical leg). They own
+    # the max-gap / oldest-$SI / newest-$FN OVERALL (across every row), so the
+    # unrestricted argmax/oldest/newest rankings also miss the answer.
+    _high(False, True, "recently-imaged SIGNED driver, newest $SI/$FN + large gap overall, yara-clean; benign on both categorical legs")
+    _low(False, True, "ancient SIGNED driver, $FN relinked by a volume op: oldest $SI/$FN + largest gap overall; signed + no yara")
 
-    # D9 — NEWEST-$SI BAIT (yara-HIT, SIGNED): $SI in 2020-2021, NEWER than the
-    # evil $SI (<=2019), with $FN 2026. So "newest $SI among over-threshold rows"
-    # lands HERE, not the answer. Benign: validly signed.
-    n = decoy_names[8]
-    # $SI pinned to 2021 (not 2020-21): this row anchors a benign $SI-year-2021
-    # cluster {D9, D11, D13} within the yara set (and {D10, D12, D14} within the
-    # unsigned set), each of size 3 — strictly larger than the answer's $SI-year
-    # bucket (size 2: {answer, D4} share the 2017-19 band). So the "$SI-year MODE"
-    # tell within yara / within unsigned lands on the benign 2021 cluster, NOT the
-    # answer. 2021 is still the NEWEST $SI in the over-set (answer's $SI <= 2019).
-    d9_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3): an
-    # OLDER-than-answer member of the 2026 bucket (so "oldest in the max-$FN-year
-    # bucket" lands on a benign 2026 row, not the answer).
-    d9_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
-    _add(n, d9_si, d9_fn, True, True,
-         "recently-imaged SIGNED driver, $SI 2020-21 (newest $SI in the over-set), yara-flagged; benign because signed")
+    # SUB-THRESHOLD yara∩unsigned near-misses (yara-HIT, UNSIGNED, gap UNDER the
+    # backdate threshold). They share the answer's TWO categorical legs but fail leg
+    # A, so the yara∩unsigned 2-feature echo holds {answer + these 4} = 5 members —
+    # the binding (N-1)-feature bucket -> echo F1 = 2/6 = 1/3 (the irreducible
+    # floor). Distinguished from the answer ONLY by gap magnitude. Their $SI/$FN are
+    # iid across a broad window so they ALSO flank the answer on the $SI/$FN axes.
+    for _ in range(4):
+        si = _d(rng.randint(2014, 2022), rng.randint(1, 12), rng.randint(1, 28))
+        fn = si + timedelta(days=rng.randint(10, BACKDATE_DAYS - 20))
+        _add(_next(), si, fn, True, False,
+             "yara+unsigned near-miss: shares both categorical legs but gap UNDER the backdate threshold")
 
-    # D10 — NEWEST-$SI BAIT (yara-CLEAN, UNSIGNED): mirror of D9 in the unsigned
-    # set, so "newest $SI among unsigned over-threshold rows" also misses the
-    # answer. Benign: no yara corroboration.
-    n = decoy_names[9]
-    d10_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026 but EARLIER in the year than the evil $FN (months 1-3): an
-    # OLDER-than-answer member of BOTH the overall and the unsigned 2026 buckets.
-    d10_fn = _d(2026, rng.randint(1, 3), rng.randint(1, 28))
-    _add(n, d10_si, d10_fn, False, False,
-         "recently-imaged UNSIGNED file, $SI 2021 (newest $SI among unsigned), NO yara; benign because uncorroborated")
-
-    # D11 — SMALLEST-GAP / OLDEST-$FN BAIT (yara-HIT, SIGNED): $SI 2021-22, $FN
-    # 2024 — still over threshold (gap ~2-3yr) but UNCONDITIONALLY smaller than the
-    # evil gap (>=6yr) AND with $FN older than the evil's 2026 $FN. So BOTH
-    # "smallest gap among over-threshold rows" AND "oldest $FN among over-threshold
-    # rows" land HERE. Benign: validly signed.
-    n = decoy_names[10]
-    d11_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    d11_fn = _d(2024, rng.randint(1, 12), rng.randint(1, 28))
-    _add(n, d11_si, d11_fn, True, True,
-         "old SIGNED driver, $SI 2021 -> $FN 2024 (smallest gap + oldest $FN in the over-set), yara-flagged; benign because signed")
-
-    # D12 — SMALLEST-GAP / OLDEST-$FN BAIT (yara-CLEAN, UNSIGNED): mirror of D11 in
-    # the unsigned set, so the smallest-gap / oldest-$FN rankings miss the answer
-    # there too. Benign: no yara corroboration.
-    n = decoy_names[11]
-    d12_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    d12_fn = _d(2023, rng.randint(1, 12), rng.randint(1, 28))
-    _add(n, d12_si, d12_fn, False, False,
-         "old UNSIGNED file, $SI 2021 -> $FN 2023 (smallest gap among unsigned), NO yara; benign because uncorroborated")
-
-    # D13 — OVER∩YARA PADDER (yara-HIT, SIGNED): a fourth benign over-threshold
-    # yara-hit driver so the `over ∩ yara` 2-feature echo holds >=5 rows (answer +
-    # D2 + D9 + D11 + D13) and is never a 1:1 leak. Benign: validly signed.
-    n = decoy_names[12]
-    # $SI pinned to 2021 (was 2014-16): third member of the benign yara $SI-2021
-    # cluster {D9, D11, D13}, so the "$SI-year MODE among yara rows" tell lands on
-    # this benign cluster (size 3 > the answer's size-2 band), never the answer.
-    d13_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026, LATER than the evil $FN (months 9-12): a NEWER-than-answer benign
-    # yara member of the overall 2026 $FN bucket, so that bucket has benign rows
-    # on BOTH sides of the answer.
-    d13_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
-    _add(n, d13_si, d13_fn, True, True,
-         "old SIGNED driver, $SI predates $FN from image deploy, yara-flagged; benign because signed (pads over∩yara)")
-
-    # D14 — OVER∩UNSIGNED PADDER (yara-CLEAN, UNSIGNED): a fourth benign
-    # over-threshold unsigned file so the `over ∩ unsigned` 2-feature echo holds
-    # >=5 rows (answer + D3 + D10 + D12 + D14). Benign: no yara corroboration.
-    n = decoy_names[13]
-    # $SI pinned to 2021 (was 2014-16): third member of the benign UNSIGNED $SI-
-    # 2021 cluster {D10, D12, D14}, so the "$SI-year MODE among unsigned rows" tell
-    # lands on this benign cluster (size 3 > the answer's size-2 band), not the
-    # answer.
-    d14_si = _d(2021, rng.randint(1, 12), rng.randint(1, 28))
-    # $FN 2026, LATER than the evil $FN (months 9-12): a NEWER-than-answer benign
-    # UNSIGNED member of the 2026 $FN bucket. Together with D3, D7, D10 this makes
-    # the unsigned-$FN-2026 bucket = {answer, D3, D7, D10, D14} = 5 (mode tell ->
-    # F1 1/3) and gives the overall 2026 bucket benign rows newer than the answer.
-    d14_fn = _d(2026, rng.randint(9, 12), rng.randint(1, 28))
-    _add(n, d14_si, d14_fn, False, False,
-         "old UNSIGNED file, $SI predates $FN from a volume op, NO yara; benign because uncorroborated (pads over∩unsigned)")
-
-    # Sanity (DETERMINISM-safe assertions that pin the 3-axis cheat-resistance
-    # shape; if any fails the case is structurally leaky):
+    # --- Structural sanity (DETERMINISM-safe). These pin the BIT-TABLE shape, NOT
+    # the answer's position on any scalar axis (position is intentionally random). ---
     for _nm, _p, si, fn, _lm, _y, _s, _note in decoys:
         assert si < fn  # every row diverges and runs backward
     # No decoy satisfies the full 3-way oracle (gap>thr AND yara AND unsigned):
     for _nm, _p, si, fn, _lm, y, s, _note in decoys:
         assert not (is_timestomped(si, fn) and y and (not s))
-    # A SIGNED yara-hit decoy (D2) owns the max gap WITHIN the yara set:
-    assert is_timestomped(d2_si, d2_fn) and (d2_fn - d2_si) > (fn_created - si_created)
-    # An UNSIGNED yara-clean decoy (D3) owns the max gap WITHIN the unsigned set:
-    assert is_timestomped(d3_si, d3_fn) and (d3_fn - d3_si) > (fn_created - si_created)
-    # A decoy owns the max gap OVERALL and the oldest $SI (D1):
-    assert (d1_fn - d1_si) > (fn_created - si_created) and d1_si < si_created
-    # Each categorical bucket has >=2 members (incl. the answer where applicable):
+    # Each categorical bucket has >=2 members on BOTH sides:
     n_yara = 1 + sum(1 for *_x, y, _s, _nt in decoys if y)          # answer is yara
     n_unsigned = 1 + sum(1 for *_x, _y, s, _nt in decoys if not s)  # answer is unsigned
     assert n_yara >= 2 and (len(decoys) + 1) - n_yara >= 2
     assert n_unsigned >= 2 and (len(decoys) + 1) - n_unsigned >= 2
 
-    # --- OVER-THRESHOLD-SUBSET cheat-resistance (the leak the hunter found). The
-    # 365-day threshold is public, so the over-set is its own attack surface; pin
-    # the answer as INTERIOR on every over-set ranking so no argmin/argmax/oldest/
-    # newest restricted to `gap>threshold` isolates it. ---
+    # The over-threshold subset and its 2-feature echoes. The answer is the UNIQUE
+    # over∩yara∩unsigned row (the oracle singleton); the two 2-feature echoes that
+    # contain the answer each hold >=5 rows so neither is a 1:1 leak.
     over = [(si, fn, y, s) for _nm, _p, si, fn, _lm, y, s, _note in decoys
             if is_timestomped(si, fn)]
-    evil_gap = fn_created - si_created
-    # SMALLEST gap in the over-set is a DECOY (D11/D12 have gap << evil_gap):
-    assert any((fn - si) < evil_gap for si, fn, _y, _s in over), "no over-decoy with gap < answer"
-    # NEWEST $SI in the over-set is a DECOY (D9/D10 have $SI > evil $SI):
-    assert any(si > si_created for si, _fn, _y, _s in over), "no over-decoy with $SI newer than answer"
-    # OLDEST $FN in the over-set is a DECOY (D11/D12 have $FN < evil $FN):
-    assert any(fn < fn_created for _si, fn, _y, _s in over), "no over-decoy with $FN older than answer"
-    # The over-set's two 2-feature echoes each hold >=5 rows (answer + >=4 benign),
-    # so `over∩yara` and `over∩unsigned` are low-precision guesses, not 1:1 leaks:
-    over_yara = 1 + sum(1 for si, fn, y, _s in over if y)             # answer is over+yara
-    over_unsigned = 1 + sum(1 for si, fn, _y, s in over if not s)     # answer is over+unsigned
+    over_yara = 1 + sum(1 for si, fn, y, _s in over if y)             # answer over+yara
+    over_unsigned = 1 + sum(1 for si, fn, _y, s in over if not s)     # answer over+unsigned
     assert over_yara >= 5 and over_unsigned >= 5
-    # >=3 DISTINCT singleton $SI years remain in the over-set (D1/D2/D3 at
-    # 2009/2012/2013), so "rarest $SI year" never collapses to {answer}:
-    over_si_years = [si.year for si, _fn, _y, _s in over] + [si_created.year]
-    _yc = collections.Counter(over_si_years)
-    assert sum(1 for v in _yc.values() if v == 1) >= 3, "fewer than 3 singleton $SI years in over-set"
+    oracle_decoys = sum(1 for si, fn, y, s in over if y and (not s))
+    assert oracle_decoys == 0, "a decoy satisfies the full 3-way oracle"
 
-    # --- $FN ($Created0x30) absolute-date tells (the leg the design had left to
-    # vary freely). The answer's $FN year (2026) must be a SHARED, plurality value
-    # with the answer INTERIOR on the $FN-timestamp axis, else "$FN-year MODE
-    # within a label subset" or "oldest-2 in the max-$FN-year bucket" isolates it.
-    allrows = [(si_created, fn_created, True, False)] + [
-        (si, fn, y, s) for _nm, _p, si, fn, _lm, y, s, _note in decoys
-    ]
-    # Unsigned-$FN-2026 bucket holds >=5 rows (answer + D3/D7/D10/D14), so the
-    # "$FN-year MODE among unsigned rows" tell selects a size->=5 set -> F1 <= 1/3:
-    unsigned_fn2026 = sum(1 for _si, fn, _y, s in allrows if (not s) and fn.year == 2026)
-    assert unsigned_fn2026 >= 5, f"unsigned $FN-2026 bucket has {unsigned_fn2026} rows (<5)"
-    # The overall max-$FN-year bucket (2026) has >=2 benign rows OLDER than the
-    # answer by full $FN timestamp (D1/D9/D10 at months 1-3, evil at 5-8), so the
-    # "oldest-2 in the max-$FN-year bucket" tell lands on benign rows, not {answer}:
-    max_fn_year = max(fn.year for _si, fn, _y, _s in allrows)
-    assert max_fn_year == fn_created.year
-    older_in_bucket = sum(
-        1 for _si, fn, _y, _s in allrows if fn.year == max_fn_year and fn < fn_created
-    )
-    assert older_in_bucket >= 2, f"only {older_in_bucket} benign $FN-2026 rows older than answer"
-    # $SI-year MODE: a benign $SI-year cluster (D9/D11/D13 = 2021) is STRICTLY
-    # larger than the answer's $SI-year bucket within BOTH the yara set and the
-    # unsigned set, so the "$SI-year MODE" tell lands on the benign cluster:
-    ans_si_year = si_created.year
-    for restrict in (lambda y, s: y, lambda y, s: not s):  # yara set, unsigned set
-        yc = collections.Counter(
-            si.year for si, _fn, y, s in allrows if restrict(y, s)
+    # The BINDING (N-1)-feature bucket — yara∩unsigned — is held to size 5 (answer +
+    # 4 sub-threshold near-misses), so the order-2 echo floor is exactly 2/6 = 1/3.
+    yara_unsigned = 1 + sum(1 for _nm, _p, _si, _fn, _lm, y, s, _note in decoys
+                            if y and (not s))
+    assert yara_unsigned == 5, f"yara∩unsigned bucket has {yara_unsigned} rows (!=5)"
+
+    # BRACKETING: a decoy strictly beyond the answer on BOTH ends of EVERY scalar
+    # axis (gap / $SI / $FN), within the over-set AND within each forensic subset,
+    # so neither the min nor the max single-pick (gap/$SI/$FN, restricted to all /
+    # yara / unsigned) can ever land on the answer. (Central picks are defeated by
+    # the iid interior flankers, which the gate measures directly — they cannot be
+    # pinned by a determinism-safe assertion because the answer's rank is random.)
+    evil_gap_s = (fn_created - si_created).total_seconds()
+    over_rows = [(si, fn, y, s) for _nm, _p, si, fn, _lm, y, s, _note in decoys
+                 if is_timestomped(si, fn)]
+
+    def _bracketed(rows_sub: list[tuple[datetime, datetime, bool, bool]]) -> bool:
+        gaps = [(fn - si).total_seconds() for si, fn, _y, _s in rows_sub]
+        sis = [si for si, _fn, _y, _s in rows_sub]
+        fns = [fn for _si, fn, _y, _s in rows_sub]
+        return (
+            any(g < evil_gap_s for g in gaps) and any(g > evil_gap_s for g in gaps)
+            and any(si < si_created for si in sis) and any(si > si_created for si in sis)
+            and any(fn < fn_created for fn in fns) and any(fn > fn_created for fn in fns)
         )
-        ans_count = yc[ans_si_year]
-        assert max(yc.values()) > ans_count, (
-            "answer $SI year is the (tied) MODE within a label subset"
-        )
+
+    assert _bracketed(over_rows), "answer not bracketed on some scalar axis (over-set)"
+    assert _bracketed([r for r in over_rows if r[2]]), "answer not bracketed within yara over-set"
+    assert _bracketed([r for r in over_rows if not r[3]]), "answer not bracketed within unsigned over-set"
 
     # --- Synthesize MFTECmd-style CSV. ---
     header = "EntryNumber,FileName,ParentPath,Created0x10,Created0x30,LastModified0x10\n"
