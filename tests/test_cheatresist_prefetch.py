@@ -1,56 +1,51 @@
-"""Cheat-resistance gate for the Prefetch Forge template (Option 1, reasoning-only).
+r"""Cheat-resistance gate for the Prefetch Forge template (Option 1, reasoning-only).
 
 The defining property we assert: a Prefetch case is solvable ONLY by the intended
-forensic reasoning, NOT by reading a label or running a surface regex. Every signal
-that fires on the ANSWER also fires on >=1 DECOY, and the decoys carry benign
-near-miss tells, so no cheap shortcut isolates the answer.
+forensic reasoning, NOT by reading a label, running a surface regex, or testing
+membership in the PUBLIC open-source constant. Every signal that fires on the
+ANSWER also fires on >=1 DECOY, so no cheap shortcut isolates the answer.
 
 The intended forensic rule (the ORACLE) is a process-MASQUERADE check (ATT&CK
 T1036.005) corroborated TWO ways. The malicious entry is the CONJUNCTION of THREE
 meaning-legs (the timestomp precedent — three legs, each saturated by a decoy):
-  (A) MASQUERADE — basename is a known Windows system process but its Prefetch
-      FullPath is NOT that process's canonical home (System32 / Program Files),
+  (A) MASQUERADE — a system-process basename whose Prefetch FullPath is NOT that
+      process's canonical home (read from the SYSTEM_PROCESS_HOMES map),
   (B) a MALWARE-family yara hit on that basename,
   (C) UNSIGNED — that basename is ABSENT from the catalog/signature scan.
-Decoys reproduce every surface feature AND every PAIRWISE leg of the answer:
-  - a yara hit (benign PUA/packer rules on correctly-located / legit binaries),
-  - the PUBLIC MALWARE_YARA_RULES membership (a second non-masquerade malware
-    sample; a malware-flagged but SIGNED system binary in its canonical home),
-  - the PUBLIC MASQUERADE_NAMES membership ∩ a (malware-)yara hit (a SIGNED
-    masquerade — fails only leg C; a canonical-home System32 hit — fails leg A),
-  - membership in a user-writable staging dir (legit per-user apps + the malware
-    samples), a system-process-shaped basename, a duplicated basename,
-so no single surface/label partition — nor any first/last/min/max of any leg or
-PAIR of legs — selects the answer. Only the full 3-way MEANING does (that IS the
-oracle). Each leg and each pair is placed on BOTH sides of the answer in path order.
 
-Two deterministic, no-LLM baselines, measured over K>=8 fresh seeds:
-  • CHEATER suite (NO domain knowledge): a battery of surface SINGLE-PICK strategies
-    (each "picks THE entry", outputting <=1 target) — echo what a label file names;
-    pick the structurally-unique entry (only/first/last/min/max on a surface feature
-    or an intersection); pick by rarity; the SYSTEM32-STRADDLE; CLASSIFY the yara
-    rule string by surface shape; AND — the hole the hunter found — pick by MEMBERSHIP
-    in the PUBLIC seed-invariant constant lists (MALWARE_YARA_RULES, MASQUERADE_NAMES)
-    and the catalog scan: every SINGLE leg and every PAIRWISE leg intersection,
-    first/last by path. We take the cheater's BEST mean-F1 across all strategies.
-    A strategy that reconstructs the FULL 3-way conjunction (masquerade ∩ malware ∩
-    unsigned) has reimplemented the forensic rule and IS the oracle, not a cheat — so
-    the membership suite stops at PAIRS (the timestomp standard).
+CO-LOCATION DEFENCE (cheat-hunt, 2026-06-09). A 30-agent hunt found the answer was
+the UNIQUE row satisfying basename∈system-name-list ∧ rule∈MALWARE_YARA_RULES ∧
+unsigned — a PUBLIC-MEMBERSHIP conjunction needing ZERO canonical-home reasoning,
+because no BENIGN decoy populated that full cell. The fix (see the template): the
+answer is a system-process basename dropped into a HOME that legitimately houses
+OTHER system processes (e.g. svchost.exe in C:\Windows root next to the real
+explorer.exe), CO-LOCATED with >=5 benign canonical residents of that exact dir,
+each a heuristic MALWARE-family yara FALSE POSITIVE that is ALSO unsigned. The
+answer and its co-residents agree on EVERY public label (system-name ∩ malware-rule
+∩ unsigned) AND every path feature (same directory, depth, segments), so only the
+per-name canonical-home MAP separates them — that map IS the oracle's reasoning.
+The single public constant is the HETEROGENEOUS map SYSTEM_PROCESS_HOMES; it is
+deliberately NOT split into homogeneous per-home sublists (an all-System32
+MASQUERADE_NAMES leaked "home==System32" as a free KEY test), so KEY-membership
+means only "is-a-system-process" (saturated) and recovering a per-home partition
+FORCES reading the home VALUES — which is `parent not in SYSTEM_PROCESS_HOMES[name]`,
+the ORACLE (the registry precedent: reading KNOWN_VENDOR_PATHS values is oracle-
+class, not a cheat).
 
-    Single-pick (not flag-all multi-pick) is the blessed repo convention: see the
-    sibling test_cheatresist_multi_artifact.py, whose strategies each `return
-    [{...}]` and whose printed cheater_best (0.141 over 8 candidates) is BELOW the
-    multi-pick floor 2/(k+1)=0.22 — only achievable single-pick. It is also the
-    only model under which the gate is satisfiable: any label partition that is
-    GUARANTEED to contain the answer (e.g. malware∩masqmem — the answer is always a
-    malware-flagged masqname) scores 2/(k+1) when flagged whole, which exceeds
-    1/N for any k<N. So "cheater_best <= 1/N" is unsatisfiable under multi-pick and
-    the gate itself implies single-pick. (For transparency: a flag-all
-    `malrule_masqmem` cheater would score ~0.33 — disclosed, not a defect.)
-  • ORACLE (encodes the INTENDED rule): masquerade + malware-family yara + unsigned.
-    Must score ~1.0 (proves solvable-by-reasoning AND the answer_key is correct).
+Two deterministic, no-LLM baselines, measured over K>=24 fresh seeds:
+  • CHEATER suite (NO domain knowledge): surface SINGLE-PICK + flag-all strategies
+    that use ONLY KEY-membership in the public map, the yara/catalog label files,
+    path regexes (user-writable staging, not-Windows, Windows-not-System32), value
+    rarity, sort position — never the home VALUES of a basename. INCLUDING the hunted
+    PUBLIC-MEMBERSHIP TRIPLE (system-name ∩ malware-rule ∩ unsigned) and its
+    intersection with every path regex, first/last/flag-all. We take the cheater's
+    BEST mean-F1. A strategy that reads the canonical-home VALUES has reimplemented
+    the forensic rule and IS the oracle, not a cheat (see test_home_value_reasoning_
+    is_oracle_class: it scores high BY READING THE MAP — the reasoning-only path).
+  • ORACLE (encodes the INTENDED rule): masquerade (non-canonical home, read from the
+    map) + malware-family yara + unsigned. Must score ~1.0.
 
-PASS GATE (numeric assertions below), matching the sibling's thresholds:
+PASS GATE (numeric assertions below):
     cheater_best_f1 <= 1/num_candidates + SLACK   (near chance)
     oracle_f1       >= 0.9
     gap = oracle_f1 - cheater_best_f1 >= 0.6
@@ -59,6 +54,7 @@ PASS GATE (numeric assertions below), matching the sibling's thresholds:
 from __future__ import annotations
 
 import collections
+import itertools
 from pathlib import Path
 
 from hexbreaker.forge import template_prefetch as P
@@ -66,6 +62,8 @@ from hexbreaker.forge.case import load_case
 
 # --- the case's candidate space + ground truth, parsed back from the artifacts ---
 
+# User-writable staging prefixes — a path REGEX a surface cheater can run (NOT the
+# canonical-home map). The answer lives in a SYSTEM dir, never under these.
 _STAGING_PREFIXES = (
     "C:\\Users\\Public",
     "C:\\ProgramData",
@@ -73,21 +71,16 @@ _STAGING_PREFIXES = (
     "C:\\Windows\\Temp",
 )
 
-# Canonical-dir map the ORACLE consults (its domain knowledge): each system-process
-# basename's legitimate home(s). Built straight from the template's own tables.
-_CANONICAL: dict[str, list[str]] = {}
-for _name, _dirs in P.MASQUERADE_NAMES.items():
-    _CANONICAL[_name] = list(_dirs)
-for _name in P.DUAL_HOME_NAMES:
-    _CANONICAL[_name] = [P.SYSTEM32, P.SYSWOW64]
-for _name, _dirs in P.PROGRAMFILES_SYSTEM_NAMES.items():
-    _CANONICAL[_name] = list(_dirs)
+# The ORACLE's canonical-home map IS the single public constant SYSTEM_PROCESS_HOMES
+# (name -> its legitimate home(s)). Reading its VALUES is the intended reasoning.
+_CANONICAL = dict(P.SYSTEM_PROCESS_HOMES)
 
 _MALWARE_RULES = set(P.MALWARE_YARA_RULES)
-# The PUBLIC, seed-invariant constant lists a submitter who holds the open-source MIT
-# Forge can read. The cheater suite below attacks MEMBERSHIP in these (the hole the
-# hunter found), not just rule SHAPE / path prefixes.
-_MASQ_NAMES = set(P.MASQUERADE_NAMES)
+# KEY-membership in the public map = "is a system-process name" (the full universe).
+# This is the strongest membership a no-domain cheater can test WITHOUT reading the
+# map's home values. Every candidate row carries one of these basenames.
+_ALL_SYSNAMES = set(P.SYSTEM_PROCESS_HOMES)
+_MASQ_NAMES = _ALL_SYSNAMES  # the public alias MASQUERADE_NAMES IS the full map
 
 
 def _gen(seed: int, tmp: Path):
@@ -105,8 +98,6 @@ def _gen(seed: int, tmp: Path):
         if ln.strip()
     ]
     yara_leaves = {ln.split(":", 1)[0].strip() for ln in yara_lines}
-    # The catalog/signature scan: basenames carrying a valid MS Authenticode signature.
-    # "unsigned" (the exculpatory third leg) = basename absent from this set.
     signed_leaves = {
         ln.split(":", 1)[0].strip()
         for ln in (case_dir / "mock_outputs" / "catalog.txt").read_text().splitlines()
@@ -129,21 +120,30 @@ def _f1(picked: set[str], target: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-# --- ORACLE: the intended forensic discriminator ---
-
-
-def _oracle(rows, yara_lines, yara_leaves, signed_leaves) -> list[str]:
-    """The intended 3-way forensic discriminator:
-      (A) MASQUERADE — a system-process basename NOT in its canonical dir,
-      (B) a MALWARE-family yara rule fired on that basename,
-      (C) UNSIGNED — that basename absent from the catalog/signature scan.
-    Reconstructing all three IS the oracle (not a cheat); each leg alone, and every
-    PAIR of legs, also fires on a benign decoy."""
-    malware_leaves = {
+def _malware_leaves(yara_lines):
+    return {
         ln.split(":", 1)[0].strip()
         for ln in yara_lines
         if ln.split(":", 1)[1].strip() in _MALWARE_RULES
     }
+
+
+def _win_not_sys32(p: str) -> bool:
+    return p.startswith("C:\\Windows\\") and not p.startswith((P.SYSTEM32, P.SYSWOW64))
+
+
+# --- ORACLE: the intended forensic discriminator (reads the home VALUES) ---
+
+
+def _oracle(rows, yara_lines, yara_leaves, signed_leaves) -> list[str]:
+    """The intended 3-way forensic discriminator:
+      (A) MASQUERADE — a system-process basename NOT in its canonical home (read from
+          SYSTEM_PROCESS_HOMES — the domain-knowledge map),
+      (B) a MALWARE-family yara rule fired on that basename,
+      (C) UNSIGNED — that basename absent from the catalog/signature scan.
+    Reconstructing all three IS the oracle (not a cheat); each leg alone, and every
+    PAIR of legs, also fires on a benign decoy."""
+    malware_leaves = _malware_leaves(yara_lines)
     picks = []
     for name, full, *_ in rows:
         parent = full.rsplit("\\", 1)[0]
@@ -153,178 +153,121 @@ def _oracle(rows, yara_lines, yara_leaves, signed_leaves) -> list[str]:
     return picks
 
 
-# --- CHEATER suite: surface single-pick strategies, NO domain knowledge ---
+# --- CHEATER suite: surface single-pick + flag-all, NO home-VALUE reasoning ---
 
 
 def _cheater_strategies(rows, yara_lines, yara_leaves, signed_leaves) -> dict[str, list[str]]:
-    """Each strategy outputs <=1 target ('pick the entry'). They use only surface
-    features a non-LLM script can read: the yara/catalog label files, the CSV columns,
-    path string shape, value rarity, sort position, AND membership in the PUBLIC
-    seed-invariant constant lists (MALWARE_YARA_RULES, MASQUERADE_NAMES) — never the
-    meaning of a rule or the COMPUTED canonical home of a binary. A strategy that
-    reconstructs the full 3-way meaning rule (masquerade ∩ malware ∩ unsigned) has
-    reimplemented the oracle and is intentionally NOT a cheat here (the timestomp
-    precedent); the suite covers every SINGLE label/feature and every PAIRWISE
-    intersection, first/last by path."""
+    """Each strategy uses only KEY-membership in the public map, the label files, path
+    REGEXES, value rarity, and sort position — never the home VALUE of a basename. A
+    strategy that reads the canonical-home values has reimplemented the oracle and is
+    intentionally NOT a cheat here. We cover every SINGLE label/feature, every PAIRWISE
+    intersection, AND the hunted PUBLIC-MEMBERSHIP TRIPLE (system-name ∩ malware-rule ∩
+    unsigned) intersected with every cheater-computable path regex, first/last/all."""
     paths = [r[1] for r in rows]
+    malware_leaves = _malware_leaves(yara_lines)
     out: dict[str, list[str]] = {}
 
-    def rows_for(leaf: str) -> list[str]:
-        return sorted(r[1] for r in rows if r[0] == leaf)
+    def add(name: str, members):
+        members = sorted(set(members))
+        out[f"{name}_first"] = members[:1]
+        out[f"{name}_last"] = members[-1:]
+        out[f"{name}_all"] = members
 
-    # (1) read the label file, output what it names
+    # membership / label legs (KEY-only, public)
+    def masqmem(r): return r[0] in _MASQ_NAMES
+    def malrule(r): return r[0] in malware_leaves
+    def unsigned(r): return r[0] not in signed_leaves
+    def yarahit(r): return r[0] in yara_leaves
+
+    # path REGEXES (cheater-computable; NOT the home-value map)
+    locs = {
+        "staging": lambda r: r[1].startswith(_STAGING_PREFIXES),
+        "notwin": lambda r: not r[1].startswith("C:\\Windows"),
+        "winNotSys32": lambda r: _win_not_sys32(r[1]),
+    }
+
+    # (1) read the label file, output what it names (yara leaf extremes / rule extremes)
+    def rows_for(leaf): return sorted(r[1] for r in rows if r[0] == leaf)
     yls = sorted(yara_leaves)
-    out["yara_firstleaf"] = rows_for(yls[0])[:1]
-    out["yara_lastleaf"] = rows_for(yls[-1])[:1]
+    if yls:
+        add("yara_leaf", rows_for(yls[0]) + rows_for(yls[-1]))
+        out["yara_firstleaf"] = rows_for(yls[0])[:1]
+        out["yara_lastleaf"] = rows_for(yls[-1])[:1]
     by_rule = sorted(yara_lines, key=lambda s: s.split(":", 1)[1].strip())
-    out["yara_minrule"] = rows_for(by_rule[0].split(":", 1)[0].strip())[:1]
-    out["yara_maxrule"] = rows_for(by_rule[-1].split(":", 1)[0].strip())[:1]
+    if by_rule:
+        out["yara_minrule"] = rows_for(by_rule[0].split(":", 1)[0].strip())[:1]
+        out["yara_maxrule"] = rows_for(by_rule[-1].split(":", 1)[0].strip())[:1]
 
-    # (2) structurally-unique on a surface feature: first/last row
+    # (2) structurally-unique on a surface feature: first/last row, path extremes
     out["first_row"] = [paths[0]]
     out["last_row"] = [paths[-1]]
-
-    # (3) user-writable path regex (the old "suspicious path" heuristic)
-    staging = sorted(r[1] for r in rows if r[1].startswith(_STAGING_PREFIXES))
-    out["staging_first"] = staging[:1]
-    out["staging_last"] = staging[-1:]
-
-    # (4) intersection of label + path heuristic (the masquerade discriminator a
-    #     surface cheater would TRY, but cannot complete without rule semantics)
-    stg_yara = sorted(
-        r[1] for r in rows if r[1].startswith(_STAGING_PREFIXES) and r[0] in yara_leaves
-    )
-    out["stgyara_first"] = stg_yara[:1]
-    out["stgyara_last"] = stg_yara[-1:]
-
-    # (5) rarity by run count / recency (the old run-count & timestamp tells)
-    by_rc = sorted((int(r[2]), r[1]) for r in rows)
-    out["min_runcount"] = [by_rc[0][1]]
-    out["max_runcount"] = [by_rc[-1][1]]
-    by_time = sorted(rows, key=lambda r: r[3])
-    out["earliest_run"] = [by_time[0][1]]
-    out["latest_run"] = [by_time[-1][1]]
-    y2026 = sorted(r[1] for r in rows if r[3].startswith("2026"))
-    out["year2026_first"] = y2026[:1]
-    out["year2026_last"] = y2026[-1:]
-
-    # (6) the duplicated / singleton basename heuristic, and its yara intersection
-    counts = collections.Counter(r[0] for r in rows)
-    dup = sorted(r[1] for r in rows if counts[r[0]] > 1)
-    out["dup_first"] = dup[:1]
-    out["dup_last"] = dup[-1:]
-    sing = sorted(r[1] for r in rows if counts[r[0]] == 1)
-    out["sing_first"] = sing[:1]
-    out["sing_last"] = sing[-1:]
-    yara_dup = sorted(r[1] for r in rows if r[0] in yara_leaves and counts[r[0]] > 1)
-    out["yaradup_first"] = yara_dup[:1]
-    out["yaradup_last"] = yara_dup[-1:]
-    yara_sing = sorted(r[1] for r in rows if r[0] in yara_leaves and counts[r[0]] == 1)
-    out["yarasing_first"] = yara_sing[:1]
-    out["yarasing_last"] = yara_sing[-1:]
-
-    # (7) oddly-shaped path value: shortest/longest/shallowest/deepest
-    by_len = sorted(rows, key=lambda r: len(r[1]))
+    by_len = sorted(rows, key=lambda r: (len(r[1]), r[1]))
     out["shortest_path"] = [by_len[0][1]]
     out["longest_path"] = [by_len[-1][1]]
     by_depth = sorted(rows, key=lambda r: (r[1].count("\\"), r[1]))
     out["shallowest_path"] = [by_depth[0][1]]
     out["deepest_path"] = [by_depth[-1][1]]
 
-    # (8) the SYSTEM32-STRADDLE shortcut: a duplicated basename that occurs BOTH in
-    #     System32 AND in a non-Windows (user-writable) dir uniquely fingerprints a
-    #     masquerading binary that has a canonical twin — WITHOUT reading yara. The
-    #     template must NOT leave the answer as the lone such straddle (it has no
-    #     System32 twin, so it does not straddle; the dual-home pair is System32+
-    #     SysWOW64 = both under C:\Windows; the browser pair is neither in System32).
-    counts8 = collections.Counter(r[0] for r in rows)
-    dup_rows = [r for r in rows if counts8[r[0]] > 1]
-    straddle = sorted(
-        r[1]
-        for r in dup_rows
-        if any(d[1].startswith("C:\\Windows\\System32") for d in dup_rows if d[0] == r[0])
-        and not r[1].startswith("C:\\Windows")
-    )
-    out["system32_straddle"] = straddle[:1]
+    # (3) single legs
+    add("malrule", [r[1] for r in rows if malrule(r)])
+    add("masqmem", [r[1] for r in rows if masqmem(r)])
+    add("unsigned", [r[1] for r in rows if unsigned(r)])
+    add("yara", [r[1] for r in rows if yarahit(r)])
+    for ln, lp in locs.items():
+        add(f"loc_{ln}", [r[1] for r in rows if lp(r)])
 
-    # (9) CLASSIFY the yara RULE STRING by surface shape — the linchpin assumption
-    #     is that malware vs benign rule names are NOT surface-separable, so the
-    #     cheater must read the rule's MEANING (domain knowledge), not its shape.
-    #     Try to pick the rule that is the structural outlier on each shape feature.
-    rule_of = {ln.split(":", 1)[0].strip(): ln.split(":", 1)[1].strip() for ln in yara_lines}
-    hit_rows = [r for r in rows if r[0] in rule_of]
+    # (4) the PUBLIC-MEMBERSHIP PAIRS and the hunted TRIPLE, each ∩ every path regex
+    add("PAIR_masqmem_malrule", [r[1] for r in rows if masqmem(r) and malrule(r)])
+    add("PAIR_masqmem_unsigned", [r[1] for r in rows if masqmem(r) and unsigned(r)])
+    add("PAIR_malrule_unsigned", [r[1] for r in rows if malrule(r) and unsigned(r)])
+    add("TRIPLE_masqmem_malrule_unsigned",
+        [r[1] for r in rows if masqmem(r) and malrule(r) and unsigned(r)])
+    for ln, lp in locs.items():
+        add(f"TRIPLE_masqmem_malrule_unsigned_{ln}",
+            [r[1] for r in rows if masqmem(r) and malrule(r) and unsigned(r) and lp(r)])
+        add(f"PAIR_masqmem_malrule_{ln}",
+            [r[1] for r in rows if masqmem(r) and malrule(r) and lp(r)])
+        add(f"PAIR_malrule_unsigned_{ln}",
+            [r[1] for r in rows if malrule(r) and unsigned(r) and lp(r)])
 
-    def _pick_by(keyfn, take_max: bool) -> list[str]:
-        if not hit_rows:
-            return []
-        ranked = sorted(hit_rows, key=lambda r: (keyfn(rule_of[r[0]]), r[1]))
-        return [(ranked[-1] if take_max else ranked[0])[1]]
+    # (5) rarity / duplication / recency
+    counts = collections.Counter(r[0] for r in rows)
+    add("singleton_basename", [r[1] for r in rows if counts[r[0]] == 1])
+    add("dup_basename", [r[1] for r in rows if counts[r[0]] > 1])
+    add("year2026", [r[1] for r in rows if r[3].startswith("2026")])
+    by_rc = sorted((int(r[2]), r[1]) for r in rows)
+    out["min_runcount"] = [by_rc[0][1]]
+    out["max_runcount"] = [by_rc[-1][1]]
 
-    out["rule_longest"] = _pick_by(len, True)
-    out["rule_shortest"] = _pick_by(len, False)
-    out["rule_most_underscores"] = _pick_by(lambda s: s.count("_"), True)
-    out["rule_fewest_underscores"] = _pick_by(lambda s: s.count("_"), False)
-    out["rule_vowel_initial"] = [
-        r[1] for r in hit_rows if rule_of[r[0]][:1].lower() in "aeiou"
-    ][:1]
-    out["rule_consonant_initial"] = [
-        r[1] for r in hit_rows if rule_of[r[0]][:1].lower() not in "aeiou"
-    ][:1]
-    out["rule_has_digit"] = [r[1] for r in hit_rows if any(c.isdigit() for c in rule_of[r[0]])][:1]
-
-    # (10) MEMBERSHIP in the PUBLIC seed-invariant constant lists — the hole the hunter
-    #      exploited. A submitter granted the open-source MIT Forge can read the exact
-    #      MALWARE_YARA_RULES and MASQUERADE_NAMES sets and the catalog scan. We attack
-    #      MEMBERSHIP directly (not rule SHAPE / generic path prefixes): every SINGLE
-    #      label leg and every PAIRWISE intersection of them, first/last by path. The
-    #      legs:
-    #        malrule  — the row's yara rule is in MALWARE_YARA_RULES   (Shortcut A)
-    #        masqmem  — the row's basename is in MASQUERADE_NAMES       (Shortcut B half)
-    #        yara     — the row is yara-hit by ANY rule                (Shortcut B half)
-    #        staging  — the row is in a user-writable staging dir
-    #        unsigned — the row's basename is ABSENT from the catalog scan (leg C)
-    #      The full 3-way meaning rule (masquerade ∩ malrule ∩ unsigned) is the ORACLE,
-    #      excluded by design — so we stop at pairwise. NONE of these single-picks may
-    #      isolate the answer: each leg, and each pair, must also fire on a decoy on
-    #      BOTH sides of the answer in path order.
-    rule_str = {ln.split(":", 1)[0].strip(): ln.split(":", 1)[1].strip() for ln in yara_lines}
-    malware_leaves = {leaf for leaf, rule in rule_str.items() if rule in _MALWARE_RULES}
-    legs = {
-        "malrule": lambda r: r[0] in malware_leaves,
-        "masqmem": lambda r: r[0] in _MASQ_NAMES,
-        "yara": lambda r: r[0] in yara_leaves,
-        "staging": lambda r: r[1].startswith(_STAGING_PREFIXES),
-        "unsigned": lambda r: r[0] not in signed_leaves,
-    }
-    leg_names = list(legs)
-    # Shortcut A verbatim: "pick the FullPath whose yara rule is a MALWARE_YARA_RULES
-    # value." Shortcut B verbatim: "basename in MASQUERADE_NAMES AND in yara." Both are
-    # covered as the single leg `malrule` and the pair `masqmem_yara` below; we also add
-    # their flat-echo first-pick explicitly so the hunter's exact attacks are named.
-    for i, a in enumerate(leg_names):
-        sub_a = sorted(r[1] for r in rows if legs[a](r))
-        out[f"mem_{a}_first"] = sub_a[:1]
-        out[f"mem_{a}_last"] = sub_a[-1:]
-        for b in leg_names[i + 1:]:
-            sub = sorted(r[1] for r in rows if legs[a](r) and legs[b](r))
-            out[f"mem_{a}_{b}_first"] = sub[:1]
-            out[f"mem_{a}_{b}_last"] = sub[-1:]
+    # (6) second path-segment rarity (NON-parameterized structural lens)
+    def seg2(p):
+        parts = p.split("\\")
+        return parts[1] if len(parts) > 1 else ""
+    seg_counts = collections.Counter(seg2(r[1]) for r in rows)
+    minc = min(seg_counts.values())
+    add("rarest_seg2", [r[1] for r in rows if seg_counts[seg2(r[1])] == minc])
 
     return out
 
 
 # --- measurement over K fresh seeds ---
 
-# K = 32 fresh seeds (>> the K>=8 minimum). The sibling cheat-resist suite uses 32
-# for the same reason: position-based strategies (first/last row after the shuffle)
-# converge near their true ~chance value only with enough samples — on a 10-seed
-# set, shuffle sampling noise can spike a single leg to ~0.3 and falsely fail the
-# gate. 32 contiguous seeds is deterministic, robust, and fast.
+# K = 32 fresh seeds (>> the K>=8 minimum). Position-based strategies converge near
+# their chance value only with enough samples; 32 contiguous seeds is deterministic.
 _SEEDS = list(range(2011, 2043))
 
 
 def _measure(tmp_path: Path):
-    cheater_scores: dict[str, list[float]] = collections.defaultdict(list)
+    """Returns (single_pick_best, single_pick_name, flagall_best, flagall_name,
+    oracle_f1, n_candidates_seen). SINGLE-PICK (<=1 target: the `_first`/`_last`
+    variants and the inherently-single strategies) is the chance-gated metric — the
+    blessed repo convention (the gate `cheater_best <= 1/N + slack` is satisfiable
+    ONLY single-pick; any label partition guaranteed to contain the answer scores
+    2/(k+1) flag-all, which exceeds 1/N). FLAG-ALL (`_all`) is gated separately at a
+    documented multi-pick-floor bound — it measures DILUTION, not ISOLATION (a true
+    isolation leak shows up as a single-pick first/last = 1.0)."""
+    single_scores: dict[str, list[float]] = collections.defaultdict(list)
+    flagall_scores: dict[str, list[float]] = collections.defaultdict(list)
     oracle_scores: list[float] = []
     n_candidates_seen: set[int] = set()
     for seed in _SEEDS:
@@ -336,43 +279,55 @@ def _measure(tmp_path: Path):
         for name, picked in _cheater_strategies(
             rows, yara_lines, yara_leaves, signed_leaves
         ).items():
-            cheater_scores[name].append(_f1(set(p for p in picked if p), target))
-    cheater_best = max(sum(v) / len(v) for v in cheater_scores.values())
-    cheater_best_name = max(
-        cheater_scores, key=lambda k: sum(cheater_scores[k]) / len(cheater_scores[k])
-    )
+            score = _f1(set(p for p in picked if p), target)
+            if name.endswith("_all"):
+                flagall_scores[name].append(score)
+            else:
+                single_scores[name].append(score)
+    sp_best = max(sum(v) / len(v) for v in single_scores.values())
+    sp_name = max(single_scores, key=lambda k: sum(single_scores[k]) / len(single_scores[k]))
+    fa_best = max(sum(v) / len(v) for v in flagall_scores.values())
+    fa_name = max(flagall_scores, key=lambda k: sum(flagall_scores[k]) / len(flagall_scores[k]))
     oracle_f1 = sum(oracle_scores) / len(oracle_scores)
-    return cheater_best, cheater_best_name, oracle_f1, n_candidates_seen
+    return sp_best, sp_name, fa_best, fa_name, oracle_f1, n_candidates_seen
 
 
 # --- the gate ---
 
-# Ceiling = 1/num_candidates + SLACK, mirroring the sibling cheat-resist suite
-# (which allows `1/ncand + 0.12`). With ~20 candidates chance is ~0.05 and the ceiling
-# is ~0.17. The slack absorbs small-sample variance in the position/rarity single-picks
-# and in the MEMBERSHIP-intersection single-picks (each leg/pair is bracketed on BOTH
-# sides of the answer, so the residual is positional shuffle noise — NOT a structural
-# leak): over the committed 32 seeds the worst surface strategy scores ~0.09, and a
-# disjoint multi-band sweep stays <= ~0.13 — comfortably inside the ceiling.
 CHEATER_SLACK = 0.12
 ORACLE_FLOOR = 0.9
 GAP_FLOOR = 0.6
+# Multi-pick floor bound: a flag-all of a benign-saturated cell that is GUARANTEED to
+# contain the answer scores 2/(k+1) — disclosed in the docstring, not an isolation
+# leak. The task's own bar: "multi-select noise floor ~0.25-0.35 is ACCEPTABLE."
+FLAGALL_FLOOR = 0.40
 
 
 def test_cheater_cannot_beat_chance(tmp_path: Path) -> None:
-    cheater_best, name, _oracle_f1, ncands = _measure(tmp_path)
+    sp_best, sp_name, _fa, _fan, _oracle_f1, ncands = _measure(tmp_path)
     chance = 1.0 / max(ncands)
     ceil = chance + CHEATER_SLACK
-    assert cheater_best <= ceil, (
-        f"surface cheater '{name}' scored mean-F1 {cheater_best:.3f} > {ceil:.3f} "
+    assert sp_best <= ceil, (
+        f"single-pick cheater '{sp_name}' scored mean-F1 {sp_best:.3f} > {ceil:.3f} "
         f"(chance 1/{max(ncands)}={chance:.3f} + slack {CHEATER_SLACK}) over "
         f"{len(_SEEDS)} seeds — a no-domain-knowledge shortcut isolates the answer; "
         f"the case is NOT reasoning-only."
     )
 
 
+def test_flagall_stays_below_multipick_floor(tmp_path: Path) -> None:
+    """Flag-all (multi-pick) of every membership/label conjunction must stay <= the
+    disclosed multi-pick floor — a benign-saturated cell, not an isolation leak."""
+    _sp, _spn, fa_best, fa_name, _oracle_f1, _ncands = _measure(tmp_path)
+    assert fa_best <= FLAGALL_FLOOR, (
+        f"flag-all cheater '{fa_name}' scored mean-F1 {fa_best:.3f} > {FLAGALL_FLOOR} "
+        f"over {len(_SEEDS)} seeds — a membership conjunction is under-saturated (cell "
+        f"too small); add benign decoys to that cell."
+    )
+
+
 def test_oracle_solves_it(tmp_path: Path) -> None:
-    _cheater_best, _name, oracle_f1, _ncands = _measure(tmp_path)
+    *_rest, oracle_f1, _ncands = _measure(tmp_path)
     assert oracle_f1 >= ORACLE_FLOOR, (
         f"ORACLE (masquerade + malware-family yara + unsigned) scored mean-F1 "
         f"{oracle_f1:.3f} < {ORACLE_FLOOR} over {len(_SEEDS)} seeds — the intended "
@@ -382,11 +337,11 @@ def test_oracle_solves_it(tmp_path: Path) -> None:
 
 
 def test_reasoning_gap_is_large(tmp_path: Path) -> None:
-    cheater_best, name, oracle_f1, ncands = _measure(tmp_path)
-    gap = oracle_f1 - cheater_best
+    sp_best, name, _fa, _fan, oracle_f1, ncands = _measure(tmp_path)
+    gap = oracle_f1 - sp_best
     assert gap >= GAP_FLOOR, (
         f"reasoning gap {gap:.3f} < {GAP_FLOOR} "
-        f"(oracle={oracle_f1:.3f}, cheater_best={cheater_best:.3f} via '{name}', "
+        f"(oracle={oracle_f1:.3f}, single-pick cheater_best={sp_best:.3f} via '{name}', "
         f"candidates={sorted(ncands)}) — the intended reasoning does not separate "
         f"cleanly from the best surface shortcut."
     )
@@ -405,45 +360,124 @@ def test_oracle_uniquely_picks_one_target_each_seed(tmp_path: Path) -> None:
         )
 
 
-def test_every_answer_signal_and_pair_also_fires_on_a_decoy(tmp_path: Path) -> None:
-    """The core Option-1 invariant, checked structurally per seed: each meaning leg
-    that fires on the ANSWER (masquerade-membership / malware-rule / yara / staging /
-    unsigned), AND each PAIRWISE intersection of them, must ALSO fire on >=1 decoy —
-    so no single- or two-label shortcut isolates the answer. Only the full 3-way rule
-    (the oracle) does."""
-    import itertools
-
-    malware_set = set(P.MALWARE_YARA_RULES)
+def test_home_value_reasoning_is_oracle_class(tmp_path: Path) -> None:
+    """PROOF a reasoning-only discriminator EXISTS (the non-gaming contrast). A
+    strategy that READS THE HOME VALUES of the public map — recover the System32-only
+    sublist, then require malware ∩ unsigned ∩ a non-canonical (Windows-not-System32)
+    location — scores HIGH. The identical strategy using only KEY-membership scores at
+    chance (asserted by test_cheater_cannot_beat_chance). The contrast IS the proof:
+    only canonical-home reasoning isolates the answer."""
+    sys32_names = {n for n, h in P.SYSTEM_PROCESS_HOMES.items() if h == [P.SYSTEM32]}
+    scores = []
     for seed in _SEEDS:
         rows, yara_lines, yara_leaves, signed_leaves, target, _ = _gen(seed, tmp_path)
-        rule_str = {ln.split(":", 1)[0].strip(): ln.split(":", 1)[1].strip() for ln in yara_lines}
-        malware_leaves = {leaf for leaf, rule in rule_str.items() if rule in malware_set}
+        malware_leaves = _malware_leaves(yara_lines)
+        picked = {
+            r[1] for r in rows
+            if r[0] in sys32_names and r[0] in malware_leaves
+            and r[0] not in signed_leaves and _win_not_sys32(r[1])
+        }
+        scores.append(_f1(picked, target))
+    mean = sum(scores) / len(scores)
+    assert mean >= 0.40, (
+        f"home-VALUE reasoning scored only {mean:.3f} — if the ONLY discriminator that "
+        f"beats chance does NOT read the canonical-home map, there is no reasoning-only "
+        f"path. Expected it to be the high-scoring (oracle-class) strategy."
+    )
+
+
+def test_answer_basename_is_unique_in_pool(tmp_path: Path) -> None:
+    """The answer's basename must occur EXACTLY ONCE across all rows — otherwise a
+    duplicated-basename / cross-dir straddle would fingerprint it without the map."""
+    for seed in _SEEDS:
+        rows, _yl, _yleaves, _signed, target, _ = _gen(seed, tmp_path)
+        tgt_base = target.rsplit("\\", 1)[1]
+        n = sum(1 for r in rows if r[0] == tgt_base)
+        assert n == 1, (
+            f"seed {seed}: answer basename {tgt_base!r} appears {n} times — a "
+            f"duplicated-basename straddle could isolate the answer without the map"
+        )
+
+
+def test_every_answer_label_leg_and_pair_also_fires_on_a_decoy(tmp_path: Path) -> None:
+    """The core Option-1 invariant: each PUBLIC-LABEL leg that fires on the ANSWER
+    (system-name membership / malware-rule / yara / unsigned), AND each PAIRWISE
+    intersection, AND the full TRIPLE (system-name ∩ malware-rule ∩ unsigned), must
+    ALSO fire on >=1 decoy — so no membership shortcut isolates the answer. Location
+    is NOT a surface leg here: it is the oracle's axis (the canonical-home map), tested
+    separately below."""
+    for seed in _SEEDS:
+        rows, yara_lines, yara_leaves, signed_leaves, target, _ = _gen(seed, tmp_path)
+        malware_leaves = _malware_leaves(yara_lines)
         tgt = next(r for r in rows if r[1] == target)
         distractors = [r for r in rows if r[1] != target]
         legs = {
-            "malrule": lambda r: r[0] in malware_leaves,
             "masqmem": lambda r: r[0] in _MASQ_NAMES,
+            "malrule": lambda r: r[0] in malware_leaves,
             "yara": lambda r: r[0] in yara_leaves,
-            "staging": lambda r: r[1].startswith(_STAGING_PREFIXES),
             "unsigned": lambda r: r[0] not in signed_leaves,
         }
-        # Sanity: the answer fires every leg.
         for nm, pred in legs.items():
-            assert pred(tgt), f"seed {seed}: answer does not fire leg {nm}"
-        # Each leg, and each pair, also fires on a distractor.
+            assert pred(tgt), f"seed {seed}: answer does not fire label leg {nm}"
         names = list(legs)
-        for combo in [(a,) for a in names] + list(itertools.combinations(names, 2)):
+        combos = (
+            [(a,) for a in names]
+            + list(itertools.combinations(names, 2))
+            + [tuple(names)]  # the full TRIPLE-equivalent (all four labels)
+        )
+        for combo in combos:
             assert any(all(legs[f](d) for f in combo) for d in distractors), (
                 f"seed {seed}: label combination {combo} fires ONLY on the answer "
-                f"(a 1/2-label shortcut isolates it)"
+                f"(a membership shortcut isolates it)"
             )
-        # The answer must NOT be a System32-straddle: its basename must NOT appear
-        # both in System32 and in a user-writable dir (that would uniquely
-        # fingerprint it WITHOUT yara — the leak the missing canonical twin avoids).
+
+
+def test_answer_location_conjunctions_are_bracketed(tmp_path: Path) -> None:
+    """The hunted leak structurally: the PUBLIC-MEMBERSHIP TRIPLE (system-name ∩
+    malware-rule ∩ unsigned) intersected with EACH cheater-computable path regex must
+    contain a benign decoy whenever it contains the answer — so neither a flag-all nor
+    a first/last single-pick of the membership conjunction (with or without a location
+    regex) isolates the answer. Only the per-name canonical-home map does."""
+    locs = {
+        "staging": lambda p: p.startswith(_STAGING_PREFIXES),
+        "notwin": lambda p: not p.startswith("C:\\Windows"),
+        "winNotSys32": _win_not_sys32,
+    }
+    for seed in _SEEDS:
+        rows, yara_lines, yara_leaves, signed_leaves, target, _ = _gen(seed, tmp_path)
+        malware_leaves = _malware_leaves(yara_lines)
+
+        def in_triple(r):
+            return (r[0] in _MASQ_NAMES and r[0] in malware_leaves
+                    and r[0] not in signed_leaves)
+
+        triple = sorted(r[1] for r in rows if in_triple(r))
+        assert target in triple
+        others = [p for p in triple if p != target]
+        assert others, f"seed {seed}: public TRIPLE is a singleton = the answer (LEAK)"
+        # bracketed in path order: a decoy sorts below AND a decoy sorts above
+        assert any(p < target for p in others), f"seed {seed}: no TRIPLE decoy below answer"
+        assert any(p > target for p in others), f"seed {seed}: no TRIPLE decoy above answer"
+        # for each location regex the answer fires, a decoy in the same regie+triple cell
+        for ln, lp in locs.items():
+            if lp(target):
+                cell = [p for p in others if lp(p)]
+                assert cell, (
+                    f"seed {seed}: TRIPLE ∩ {ln} fires ONLY on the answer — a "
+                    f"membership+regex shortcut isolates it"
+                )
+
+
+def test_no_system32_straddle(tmp_path: Path) -> None:
+    """The answer's basename must NOT appear both in System32 and in another dir — a
+    straddle would uniquely fingerprint a masquerade WITHOUT reading the map."""
+    for seed in _SEEDS:
+        rows, _yl, _yleaves, _signed, target, _ = _gen(seed, tmp_path)
+        tgt = next(r for r in rows if r[1] == target)
         same_name = [r for r in rows if r[0] == tgt[0]]
         in_system32 = any(r[1].startswith("C:\\Windows\\System32") for r in same_name)
-        in_userland = any(not r[1].startswith("C:\\Windows") for r in same_name)
-        assert not (in_system32 and in_userland), (
-            f"seed {seed}: answer basename {tgt[0]!r} straddles System32 and a "
-            f"user dir — a pure-string shortcut isolates it without reading yara"
+        in_other = any(not r[1].startswith("C:\\Windows\\System32") for r in same_name)
+        assert not (in_system32 and in_other), (
+            f"seed {seed}: answer basename {tgt[0]!r} straddles System32 and another dir "
+            f"— a pure-string shortcut isolates it without the canonical-home map"
         )
