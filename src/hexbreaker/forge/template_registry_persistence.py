@@ -78,15 +78,26 @@ from .case import (
 #   * ValueName keeps its modifier token (modifier-in-NAME stays uniform 1.0 vs decoys).
 # ValueNames are UNCHANGED from the prior pool, so the cross-bundle name-frequency defense
 # (each evil name 1/8 == each decoy 6/48) is preserved.
+# MORPHOLOGY MATCHING (cheat-hunt round 3, 2026-06-09). Round-2's fix used a uniform
+# synthetic '<Vendor>Data'/'<Vendor>Soft' folder coinage for every evil/plant — which the
+# re-hunt immediately exploited ('parent folder ends in "data"' F1~0.97; 'CamelCase compound'
+# F1~0.79) because real decoy folders never share that shape. Root-cause fix: the evil is a
+# REAL vendor's folder name placed in a NON-canonical AppData sub-tree (wrong Local/Roaming
+# branch or an extra/sibling segment), drawn across the SAME shape grammar the decoys use —
+# lowercase singles (spotify, edge), CamelCase (OneDrive, Acrobat), hyphenated (discord-desktop),
+# spaced (Google Chrome), and structural intermediates (current, bin). So casing/suffix/compound
+# shape no longer separates evil from decoy; ONLY the exact canonical subpath (the allowlist)
+# does. Each path is verified user-writable, NOT a KNOWN_VENDOR_PATHS substring, modifier-free
+# in the dir, and exe-basename != ValueName. ValueNames unchanged (frequency band preserved).
 EVIL_BINARIES = [
-    ("OneDriveUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\OneDriveData\\OneDrive.exe"),
-    ("MicrosoftEdgeHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\EdgeData\\msedge.exe"),
-    ("GoogleUpdaterTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\GoogleSoft\\chrome.exe"),
-    ("AdobeARMHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\AdobeData\\acrobat.exe"),
-    ("WindowsSecurityHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\WinSecData\\defender.exe"),
-    ("SpotifyWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpotifyData\\spotify.exe"),
-    ("DiscordUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\DiscordData\\discord.exe"),
-    ("TeamsMachineUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\TeamsData\\teams.exe"),
+    ("OneDriveUpdate", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\Microsoft\\OneDrive\\OneDrive.exe"),
+    ("SpotifyWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\spotify\\spotify.exe"),
+    ("DiscordUpdater", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\discord-desktop\\Discord.exe"),
+    ("TeamsMachineUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Microsoft\\TeamsClient\\current\\Teams.exe"),
+    ("GoogleUpdaterTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\Google Chrome\\chrome.exe"),
+    ("AdobeARMHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\Adobe\\Acrobat\\acrobat.exe"),
+    ("MicrosoftEdgeHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\edge\\msedge.exe"),
+    ("WindowsSecurityHealth", "C:\\Users\\Mr.Evil\\AppData\\Local\\Defender\\bin\\defender.exe"),
 ]
 
 # Legit Run entries that live in user-writable per-user app dirs — these are the
@@ -202,22 +213,22 @@ LEGIT_SYSTEM = [
 # ValueNames unchanged (frequency band preserved); dirs/ValueNames remain disjoint from
 # EVIL_BINARIES and MODIFIER_NAMED.
 PLANT_BINARIES = [
-    ("OutlookSyncAgent", "C:\\Users\\Mr.Evil\\AppData\\Local\\OutlookData\\outlook.exe"),
-    ("ChromeHelperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\ChromiumData\\chrome.exe"),
-    ("AcrobatRdrUpdater", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\AcrobatData\\acrord32.exe"),
-    ("DefenderScanHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\WinDefData\\msmpeng.exe"),
-    ("IntelGraphicsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\IntelData\\igfxem.exe"),
-    ("NvidiaWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\NvidiaData\\nvcontainer.exe"),
-    ("RealtekAudioTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\RealtekData\\ravbg64.exe"),
-    ("JavaUpdateScheduler", "C:\\Users\\Mr.Evil\\AppData\\Local\\JavaData\\jusched.exe"),
-    ("CortanaSearchHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\CortanaData\\searchui.exe"),
-    ("OfficeClickToRun", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\OfficeData\\officec2r.exe"),
-    ("SkypeBackgroundHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\SkypeData\\skype.exe"),
-    ("WindowsUpdateAssist", "C:\\Users\\Mr.Evil\\AppData\\Local\\WuauData\\wuauclt.exe"),
-    ("AmdRadeonSettings", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\RadeonData\\radeonsettings.exe"),
-    ("LogitechOptionsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\LogiData\\logioptions.exe"),
-    ("BitLockerSyncHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\BdeData\\bdesvc.exe"),
-    ("PrintSpoolerHost", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\SpoolData\\spoolsv.exe"),
+    ("OutlookSyncAgent", "C:\\Users\\Mr.Evil\\AppData\\Local\\Outlook\\outlook.exe"),
+    ("ChromeHelperUpdate", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\chrome\\chrome.exe"),
+    ("AcrobatRdrUpdater", "C:\\Users\\Mr.Evil\\AppData\\Local\\acrobat-reader\\acrord32.exe"),
+    ("DefenderScanHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\Defender\\platform\\msmpeng.exe"),
+    ("IntelGraphicsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\Intel\\igfxem.exe"),
+    ("NvidiaWebHelper", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\nvidia\\nvcontainer.exe"),
+    ("RealtekAudioTask", "C:\\Users\\Mr.Evil\\AppData\\Local\\Realtek Audio\\ravbg64.exe"),
+    ("JavaUpdateScheduler", "C:\\Users\\Mr.Evil\\AppData\\Local\\Java\\bin\\jusched.exe"),
+    ("CortanaSearchHost", "C:\\Users\\Mr.Evil\\AppData\\Local\\Cortana\\searchui.exe"),
+    ("OfficeClickToRun", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\office16\\officec2r.exe"),
+    ("SkypeBackgroundHost", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\skype-desktop\\skype.exe"),
+    ("WindowsUpdateAssist", "C:\\Users\\Mr.Evil\\AppData\\Local\\Windows Defender\\wuauclt.exe"),
+    ("AmdRadeonSettings", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\Radeon\\radeonsettings.exe"),
+    ("LogitechOptionsUpdate", "C:\\Users\\Mr.Evil\\AppData\\Local\\logitech\\logioptions.exe"),
+    ("BitLockerSyncHelper", "C:\\Users\\Mr.Evil\\AppData\\Local\\BitLocker\\app\\bdesvc.exe"),
+    ("PrintSpoolerHost", "C:\\Users\\Mr.Evil\\AppData\\Roaming\\spooler\\spoolsv.exe"),
 ]
 
 # The intended forensic discriminator's allowlist: for a binary in a user-writable
