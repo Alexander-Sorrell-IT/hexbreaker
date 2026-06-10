@@ -324,7 +324,41 @@ Pydantic with `extra="forbid"`, regex on `step_id` (`^S-\d{3,}$`) and `stdout_ha
 
 Forge optionally plants timestomp-signature MFT rows with no yara corroboration. The agent must NOT confirm these. Measured `fp_planted = 0/10` runs after the corroboration rule landed (§2.3 above).
 
-## 6. Open gaps + planned work
+## 6. Evidence integrity (original data is never modified; bypass attempts fail)
+
+**How the architecture prevents original data from being modified.** A Court run is
+**append-only by construction**: it reads evidence and writes only NEW artifacts — the
+hash-chained `transcript.jsonl` and its `transcript.outputs/` sidecars — into the case's
+output directory. It never opens, overwrites, or deletes the input evidence
+(`manifest.json`, `answer_key.json`, `mock_outputs/`). On the real NIST disk the source
+`.E01` is mounted **read-only** via `ewfmount`; extraction copies bytes out, the image is
+never written. Tool wrappers (`src/hexbreaker/tools.py`) run each SIFT tool as a subprocess,
+capture stdout to a sidecar, and record its SHA-256 — they never write back to evidence.
+Where a case could be coerced into writing outside its own directory, the path is refused up
+front: `mock_outputs` entries that are absolute, drive-qualified, or contain `..` / `\`
+traversal are rejected (`tests/test_forge_case.py`), as are traversal/absolute sidecar paths
+(`tests/test_security_transcript.py`).
+
+**What happens when the agent (or an attacker) tries to bypass those protections.** Every
+guardrail has a paired test that *runs the attack and asserts it fails* (full map:
+[`tests/bypass/README.md`](../tests/bypass/README.md)). The integrity-relevant attacks:
+
+| Attack attempted | Defense | Result |
+|---|---|---|
+| Flip one byte of a recorded tool output on disk (clean → evil) | sidecar-byte hash check | **caught** — `test_verify_detects_sidecar_byte_tampering` |
+| Delete a sidecar to hide an output | presence + hash check | **caught** — `test_verify_detects_missing_sidecar` |
+| Recompute the whole SHA chain to forge a clean history | HMAC-SHA256 (keyed) signature | **caught** — `test_hmac_detects_full_chain_recompute_forgery` |
+| Cite a fabricated `step_id` / substitute a cited hash | citation validator (Layer 1) | **rejected** — `test_verdict_rejected_on_fabricated_step_id`, `…on_hash_substitution` |
+| Emit a verdict before observing any tool | forced tool-call FSM (Layer 2) | **rejected** — `test_premature_verdict_is_rejected…` |
+| Drop a poisoned pre-existing `transcript.jsonl` into the case dir | pre-run guard | **refused** — `test_run_court_refuses_preexisting_transcript_in_case_dir` |
+| Invoke an unsupported/destructive tool (incl. via MCP) | tool allow-list | **rejected** — `test_run_tool_rejects_unsupported_tool`, `test_dispatch_refuses_unsupported_sift_tool` |
+
+Honest limitation: the bare SHA-256 chain is forgeable by full recompute — **HMAC signing is
+what makes the chain tamper-evident** against an attacker who controls the files. Evidence is
+read-only by construction; the agent may only cite outputs the orchestrator captured and
+hashed itself.
+
+## 6.1 Open gaps + planned work
 
 | Gap | Plan |
 |---|---|

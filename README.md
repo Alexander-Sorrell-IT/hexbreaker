@@ -71,8 +71,8 @@ cd hexbreaker
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[test]"
 
-# 2. Configure DeepSeek (any OpenAI-compatible endpoint works; see .env.example)
-cp .env.example .env  # then edit to set DEEPSEEK_API_KEY
+# 2. Configure DeepSeek (any OpenAI-compatible endpoint works)
+export DEEPSEEK_API_KEY=sk-...   # the CLI reads this straight from the environment
 
 # 3. Generate a case + run Court + score
 hexbreaker generate --seed 4729 --template timestomp --out /tmp/case-4729

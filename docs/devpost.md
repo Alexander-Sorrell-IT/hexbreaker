@@ -61,6 +61,14 @@ Every step writes to a **SHA-256 hash-chained JSONL transcript** with **HMAC-SHA
 9. 9-angle code review + security review (parallel agents); 15 findings + 2 confirmed HIGH/MEDIUM path-traversal CVEs; both CVEs closed with 10 regression tests
 10. Witness wired (5th actor on the wire); HMAC signing (Layer 5) via MIT-licensed Valhuntir port
 
+**Autonomous Execution (judging criterion #1).** This is the quality the architecture is built
+around: the agent runs **unattended** — it reasons about each next step through the FSM
+`tool → observe → verdict` loop, handles failures itself (429-aware retry on the model API), and
+**self-corrects in real time**. The deterministic Judge (JR-01/JR-02) downgrades weak or baited
+`CONFIRMED` verdicts to `CONTESTED` at runtime, in code, regardless of what the model emits — so
+the system catches its own mistakes without a human in the loop (**0 planted artifacts confirmed
+across 40 unattended provocateur runs**).
+
 ## Challenges we ran into
 
 - **The audit caught a 50-percentage-point measurement artifact.** The code-review angle revealed the timestomp template was always emitting the evil MFT row at index 0. After `rng.shuffle()`, the Provocateur F1 dropped 1.0 → 0.7 — the prior number was partially "agent picks row 1," not "agent reasons about $SI/$FN." Honest re-measurement is in `docs/accuracy.md §2.2.1`.
