@@ -6,7 +6,7 @@
 
 ## Inspiration
 
-Every DFIR-agent paper, repo, and demo we read for this hackathon scored 100% F1 on the **same one dataset** — NIST's CFReDS "Mr. Evil" Hacking Case. We independently verified the strongest visible competitor (`dhyabi2/findevil`) and found their 100% holds **only on their original (model, OS, scaffolding) tuple** (Gemma 4 31B + SIFT VM + 400 lines of NIST-specific extraction code). Swap any axis — to DeepSeek, to Ubuntu, to an unseen case — and their pipeline returns 0% F1.
+The only visible competitor with a published 100% F1, `dhyabi2/findevil`, claims it on the **same one dataset** every visible DFIR-agent entry we reviewed leans on — NIST's CFReDS "Mr. Evil" Hacking Case. We independently re-measured their pipeline and found their 100% holds **only on their original (model, OS, scaffolding) tuple** (Gemma 4 31B + SIFT VM + 400 lines of NIST-specific extraction code). Swap any axis — to DeepSeek, to Ubuntu, to an unseen case — and their pipeline returns 0% F1.
 
 That's not a methodology indictment; it's a **dataset saturation problem.** When a community converges on one ground-truth corpus, agents converge on its idiosyncrasies. Hexbreaker is built on the premise that the field needs both:
 

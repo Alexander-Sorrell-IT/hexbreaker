@@ -41,7 +41,7 @@ The Forge is the headline product — it lets the community honestly measure any
 
 ## Why this exists
 
-The Find Evil! hackathon exists because Protocol SIFT (the organizer's reference framework) hallucinates without human review. Every visible submission claims accuracy; none ship a generative benchmark. Hexbreaker's premise: **when a community converges on one ground-truth dataset (NIST Hacking Case), agents converge on its idiosyncrasies** — dhyabi2's 400-line `_pre_extract_hives` pipeline scores 100% F1 on NIST and 0% F1 on the same NIST under different (model, host) conditions. The community needs cases nobody — agent, author, judge — has seen before.
+The Find Evil! hackathon exists because Protocol SIFT (the organizer's reference framework) hallucinates without human review. Of the visible submissions we reviewed, none ship a generative benchmark. Hexbreaker's premise: **when a community converges on one ground-truth dataset (NIST Hacking Case), agents converge on its idiosyncrasies** — dhyabi2's 400-line `_pre_extract_hives` pipeline scores 100% F1 on NIST and 0% F1 on the same NIST under different (model, host) conditions. The community needs cases nobody — agent, author, judge — has seen before.
 
 ## Try it out (5 minutes, no SIFT VM needed)
 
