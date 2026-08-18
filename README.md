@@ -178,7 +178,10 @@ Every safeguard has a paired test that proves it **rejects** bad input as well a
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The HMAC primitive at `src/hexbreaker/court/hmac_chain.py` was ported from MIT-licensed [AppliedIR/Valhuntir](https://github.com/AppliedIR/Valhuntir) `src/vhir_cli/verification.py` (Copyright (c) 2026 AppliedIncidentResponse.com) with attribution preserved in the module docstring.
+[PolyForm Noncommercial 1.0.0](LICENSE) — free for noncommercial use.
+Commercial use requires a paid license: matrixbuilderops@proton.me
+
+The HMAC primitive at `src/hexbreaker/court/hmac_chain.py` was ported from MIT-licensed [AppliedIR/Valhuntir](https://github.com/AppliedIR/Valhuntir) `src/vhir_cli/verification.py` (Copyright (c) 2026 AppliedIncidentResponse.com) with attribution preserved in the module docstring.
 
 ## Author
 
