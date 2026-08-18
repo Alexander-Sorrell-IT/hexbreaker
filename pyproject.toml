@@ -7,13 +7,12 @@ name = "hexbreaker"
 version = "0.0.1"
 description = "Adversarial DFIR triage and benchmark for the SANS Find Evil! hackathon"
 readme = "README.md"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [{ name = "Alexander Sorrell", email = "alexander.sorrell.it@gmail.com" }]
 keywords = ["dfir", "forensics", "ai", "adversarial", "benchmark", "sans", "find-evil"]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3.11",
   "Topic :: Security",
 ]
